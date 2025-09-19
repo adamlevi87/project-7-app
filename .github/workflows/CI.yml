@@ -34,13 +34,12 @@ jobs:
     
     # Tests if `package-lock.json` can be installed without actually installing. Would catch the Express version mismatch issue we found - fails if package.json constraints don't match the lock file.
     # Dependency Validation Block
-    - name: Validate package-lock consistency
+    - name: "Step 1: Validate package-lock consistency"
       run: |
         echo "🔍 Checking package-lock.json consistency..."
         npm ci --dry-run
     
-    - name: Validate registry sources  
-      working-directory: ./it-works-on-my-machine
+    - name: "Step 2: Validate registry sources"
       run: |
         echo "🔍 Checking for private registries..."
         if grep -q "ironsrc.jfrog.io" package-lock.json; then

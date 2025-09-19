@@ -1,4 +1,5 @@
-{
-    npm ci --dry-run
+Step 1: Validate package-lock consistency (npm ci --dry-run)
+├─ Issue Found: Version mismatch (Express 4.x vs 5.x)
+├─ Resolution: npm install 
+└─ Note: Might not be correct decision, but proceeding
 
-}
