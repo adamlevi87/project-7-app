@@ -30,6 +30,7 @@ jobs:
       with:
         node-version: '18'
         cache: 'npm'
+        cache-dependency-path: 'it-works-on-my-machine/package-lock.json'
     
     ## Tests if `package-lock.json` can be installed without actually installing. Would catch the Express version mismatch issue we found - fails if package.json constraints don't match the lock file.
     # Dependency Validation Block
