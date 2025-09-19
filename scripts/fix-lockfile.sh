@@ -30,38 +30,6 @@ PACKAGES=$(echo "$LINT_OUTPUT" | grep "detected invalid host" | \
     sed 's/@[0-9].*//' | \
     sort -u)
 
-if [ -z "$PACKAGES" ]; then
-    echo "❌ No problematic packages found in output"
-    exit 1
-fi
-
-echo "📦 Found problematic packages:"
-echo "$PACKAGES"
-echo ""
-
-# Backup the original lock file
-mkdir -p backup
-cp package-lock.json backup/package-lock.json.lockfile-lint.backup
-echo "💾 Backed up package-lock.json to backup/package-lock.json.lockfile-lint.backup"
-
-# Remove each package from package-lock.json
-for package in $PACKAGES; do
-    echo "🗑️  Removing $package from package-lock.json..."
-    
-    # Remove all entries that contain the package name (handles nested node_modules)
-    jq "del(.packages | to_entries[] | select(.key | test(\".*$package.*\")) | .key)" package-lock.json > temp.json && mv temp.json package-lock.json
-    
-    # Also remove from dependencies if it exists there
-    jq "del(.dependencies.\"$package\")" package-lock.json > temp.json && mv temp.json package-lock.json
-done
-
-# Clean up temp file
-rm -f temp.json
-
-echo ""
-echo "✅ Removed all problematic packages"
-echo "🔄 Run 'npm install' to reinstall with correct registry"
-echo "📋 Backup available at: backup/package-lock.json.lockfile-lint.backup"
 
 if [ -z "$PACKAGES" ]; then
     echo "❌ No problematic packages found in output"
