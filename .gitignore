@@ -1,2 +1,5 @@
 # backup folder shouldnt be in git
 it-works-on-my-machine/backup/
+
+# node modules
+**node_modules/
