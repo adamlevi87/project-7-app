@@ -111,12 +111,12 @@ jobs:
         find . -name "*.sh" -type f -exec shellcheck {} \;
     
     - name: Stage 1 Summary
-      if: always()
+      if: always()  # Always run, but show actual results
       run: |
-        echo "📊 Stage 1: Code Quality & Standards Validation Complete"
-        echo "✅ Dependency validation"
-        echo "✅ Security audit" 
-        echo "✅ License compliance"
-        echo "✅ Code standards validation"
-        echo "✅ Dockerfile linting"
-        echo "✅ Shell script validation"
+        echo "📊 Stage 1: Code Quality & Standards Validation Results"
+        echo "Status: ${{ job.status }}"
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ All checks passed"
+        else
+          echo "❌ Some checks failed - see above for details"
+        fi
