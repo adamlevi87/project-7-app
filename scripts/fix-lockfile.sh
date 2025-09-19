@@ -48,12 +48,15 @@ echo "💾 Backed up package-lock.json to backup/package-lock.json.lockfile-lint
 for package in $PACKAGES; do
     echo "🗑️  Removing $package from package-lock.json..."
     
-    # Use jq to remove the package from node_modules section
-    jq "del(.packages.\"node_modules/$package\")" package-lock.json > temp.json && mv temp.json package-lock.json
+    # Remove all entries that contain the package name (handles nested node_modules)
+    jq "del(.packages | to_entries[] | select(.key | test(\".*$package.*\")) | .key)" package-lock.json > temp.json && mv temp.json package-lock.json
     
     # Also remove from dependencies if it exists there
     jq "del(.dependencies.\"$package\")" package-lock.json > temp.json && mv temp.json package-lock.json
 done
+
+# Clean up temp file
+rm -f temp.json
 
 echo ""
 echo "✅ Removed all problematic packages"
@@ -83,9 +86,6 @@ for package in $PACKAGES; do
     # Also remove from dependencies if it exists there
     jq "del(.dependencies.\"$package\")" package-lock.json > temp.json && mv temp.json package-lock.json
 done
-
-# At the end of the script
-rm -f temp.json
 
 echo ""
 echo "✅ Removed all problematic packages"
