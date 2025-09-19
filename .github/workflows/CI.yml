@@ -71,10 +71,10 @@ jobs:
     ##### ESLint
     - name: Setup ESLint
       run: |
-        echo "🔧 Setting up ESLint..."
-        npm install -g eslint
-        if [ ! -f eslint.config.js ]; then
-          echo 'export default [{ files: ["**/*.js"], languageOptions: { ecmaVersion: 12, sourceType: "commonjs", globals: { require: "readonly", module: "readonly", exports: "readonly", console: "readonly", process: "readonly" } }, rules: {} }];' > eslint.config.js
+        echo "Setting up ESLint..."
+        npm install -g eslint@^8.57.0
+        if [ ! -f .eslintrc.json ]; then
+          echo '{"extends": ["eslint:recommended"], "env": {"node": true, "es2021": true}, "parserOptions": {"ecmaVersion": 12}}' > .eslintrc.json
         fi
         
     - name: Run ESLint
