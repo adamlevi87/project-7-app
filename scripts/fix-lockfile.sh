@@ -10,7 +10,7 @@ sudo npm install -g lockfile-lint
 echo "🔍 Running lockfile-lint to check for registry issues..."
 
 # Run lockfile-lint and capture output (from root, target the project folder)
-LINT_OUTPUT=$(lockfile-lint --path it-works-on-my-machine/package-lock.json --validate-https --allowed-hosts npm registry.npmjs.org 2>&1)
+LINT_OUTPUT=$(lockfile-lint --path ../it-works-on-my-machine/package-lock.json --validate-https --allowed-hosts npm registry.npmjs.org 2>&1)
 LINT_EXIT_CODE=$?
 
 if [ $LINT_EXIT_CODE -eq 0 ]; then
