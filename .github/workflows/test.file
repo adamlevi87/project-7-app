@@ -1,7 +1,26 @@
+this needs to be detected:
 Docker file changes-> 
 COPY package.json ./
 COPY package-lock.json ./
 RUN npm ci
+
+
+---------------------
+lockfile-lint:
+many:
+detected invalid host(s) for package: accepts@2.0.0-28801cb2d4c10a0bd7419f78115a721729a35563
+    expected: registry.npmjs.org,registry.npmjs.org
+    actual: ironsrc.jfrog.io
+
+detected invalid host(s) for package: body-parser@2.2.0-999359dae0e362a7b23405d625baa244cc3a0024
+    expected: registry.npmjs.org,registry.npmjs.org
+    actual: ironsrc.jfrog.io
+
+developer would PROBABLY do:
+rm package-lock.json && npm install
+
+
+
 
 Step 1: Validate package-lock consistency (npm ci --dry-run)
 ├─ Issue Found: Version mismatch (Express 4.x vs 5.x)
