@@ -46,6 +46,9 @@ for registry in $REGISTRIES; do
     jq "del(.packages[] | select(.resolved and (.resolved | contains(\"$registry\"))))" package-lock.json > temp.json && mv temp.json package-lock.json
 done
 
+# Clean up temp file
+rm -f temp.json
+
 echo ""
 echo "Removed all packages from problematic registries"
 echo "Run 'npm install' to reinstall with correct registry"
