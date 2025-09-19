@@ -22,6 +22,13 @@ rm package-lock.json && npm install
 we use:
 fix-lockfile
 
+
+------------------------
+npm ci --dry-run
+version mismatch - we change either the package.json or lock.json
+chaning package.json made more sense to me
+^5.1.0
+
 --------------------------------------
 
 
