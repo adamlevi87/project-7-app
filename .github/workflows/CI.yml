@@ -32,7 +32,8 @@ jobs:
         cache: 'npm'
         cache-dependency-path: 'it-works-on-my-machine/package-lock.json'
     
-    # Validates the integrity and security of the lock file itself. Ensures all package URLs use HTTPS and detects tampering or malformed entries.
+    ############### NPM Validations
+    ##### lockfile
     - name: Install lockfile-lint
       run: npm install -g lockfile-lint
 
@@ -40,77 +41,87 @@ jobs:
       run: |
         echo "🔒 Validating lockfile integrity..."
         lockfile-lint --path package-lock.json --validate-https --allowed-hosts npm registry.npmjs.org
+    #####
 
-    # # Tests if `package-lock.json` can be installed without actually installing. Would catch the Express version mismatch issue we found - fails if package.json constraints don't match the lock file.
-    # # Dependency Validation Block
-    # - name: "Step 1: Validate package-lock consistency"
-    #   run: |
-    #     echo "🔍 Checking package-lock.json consistency..."
-    #     npm ci --dry-run
-        
+    ##### audit
+    - name: Security audit
+      run: |
+        echo "🛡️ Running security audit..."
+        npm audit --audit-level moderate
+    #####
+
+    - name: Validate package-lock consistency
+      run: |
+        echo "🔍 Checking package-lock.json consistency..."
+        npm ci --dry-run
+
+    ##### License checker
+    - name: Install license-checker
+      run: npm install -g license-checker
+
+    - name: Check license compliance
+      run: |
+        echo "📄 Checking license compliance..."
+        npm ci
+        license-checker --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause' --summary
+    #####
+    ###############
+
+    ############### Code Standards Block
+    ##### ESLint
+    - name: Setup ESLint
+      run: |
+        echo "🔧 Setting up ESLint..."
+        npm install -g eslint
+        if [ ! -f .eslintrc.json ]; then
+          echo '{"extends": ["eslint:recommended"], "env": {"node": true, "es2021": true}, "parserOptions": {"ecmaVersion": 12}}' > .eslintrc.json
+        fi
     
+    - name: Run ESLint
+      run: |
+        echo "🧹 Running ESLint..."
+        eslint . --format unix --ext .js
+    #####
+
+    ##### Prettier
+    - name: Setup Prettier
+      run: npm install -g prettier
     
-    # # Scans dependencies for known security vulnerabilities. Sets threshold to "moderate" so minor issues don't block builds, but serious security problems will fail the pipeline.
-    # - name: Security audit
-    #   run: |
-    #     echo "🛡️ Running security audit..."
-    #     npm audit --audit-level moderate
+    - name: Check code formatting
+      run: |
+        echo "💅 Checking code formatting..."
+        prettier --check "**/*.{js,json,md}" || {
+          echo "❌ Code formatting issues found. Run 'prettier --write .' to fix."
+          exit 1
+        }
+    #####
+
+    ############### Docker Validation
+    ##### Hadolint
+    - name: Install hadolint
+      run: |
+        wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+        chmod +x hadolint
+        sudo mv hadolint /usr/local/bin/
+
+    - name: Lint Dockerfile
+      run: |
+        echo "🐳 Linting Dockerfile..."
+        hadolint Dockerfile
+    #####
+    ###############
+
+    ############### Shell Script Validation
+    ##### Spellcheck
+    - name: Install shellcheck
+      run: sudo apt-get update && sudo apt-get install -y shellcheck
     
-    # - name: Install license-checker
-    #   run: npm install -g license-checker
-    
-    # - name: Check license compliance
-    #   run: |
-    #     echo "📄 Checking license compliance..."
-    #     npm ci
-    #     license-checker --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause' --summary
-    
-    # # Code Standards Block
-    # - name: Setup ESLint
-    #   run: |
-    #     echo "🔧 Setting up ESLint..."
-    #     npm install -g eslint
-    #     if [ ! -f .eslintrc.json ]; then
-    #       echo '{"extends": ["eslint:recommended"], "env": {"node": true, "es2021": true}, "parserOptions": {"ecmaVersion": 12}}' > .eslintrc.json
-    #     fi
-    
-    # - name: Run ESLint
-    #   run: |
-    #     echo "🧹 Running ESLint..."
-    #     eslint . --format unix --ext .js
-    
-    # - name: Setup Prettier
-    #   run: npm install -g prettier
-    
-    # # Validates code formatting consistency. Fails if any files don't match the expected formatting rules - ensures consistent code style across the team.
-    # - name: Check code formatting
-    #   run: |
-    #     echo "💅 Checking code formatting..."
-    #     prettier --check "**/*.{js,json,md}" || {
-    #       echo "❌ Code formatting issues found. Run 'prettier --write .' to fix."
-    #       exit 1
-    #     }
-    
-    # - name: Install hadolint
-    #   run: |
-    #     wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
-    #     chmod +x hadolint
-    #     sudo mv hadolint /usr/local/bin/
-    
-    # # Lints the Dockerfile for best practices and potential issues. Would catch things like running as root, inefficient layer caching, or security problems.
-    # - name: Lint Dockerfile
-    #   run: |
-    #     echo "🐳 Linting Dockerfile..."
-    #     hadolint Dockerfile
-    
-    # - name: Install shellcheck
-    #   run: sudo apt-get update && sudo apt-get install -y shellcheck
-    
-    # # Analyzes the shell script for common mistakes, portability issues, and potential bugs. Your `test.sh` is simple but this catches issues in more complex scripts.
-    # - name: Lint shell scripts
-    #   run: |
-    #     echo "📜 Linting shell scripts..."
-    #     find . -name "*.sh" -type f -exec shellcheck {} \;
+    - name: Lint shell scripts
+      run: |
+        echo "📜 Linting shell scripts..."
+        find . -name "*.sh" -type f -exec shellcheck {} \;
+    #####
+    ###############
     
     - name: Stage 1 Summary
       if: always()  # Always run, but show actual results

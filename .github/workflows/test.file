@@ -19,7 +19,10 @@ detected invalid host(s) for package: body-parser@2.2.0-999359dae0e362a7b23405d6
 developer would PROBABLY do:
 rm package-lock.json && npm install
 
+we use:
+fix-lockfile
 
+--------------------------------------
 
 
 Step 1: Validate package-lock consistency (npm ci --dry-run)
