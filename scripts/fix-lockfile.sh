@@ -41,8 +41,9 @@ echo "$PACKAGES"
 echo ""
 
 # Backup the original lock file
-cp package-lock.json package-lock.json.backup
-echo "💾 Backed up package-lock.json to package-lock.json.backup"
+mkdir -p backup
+cp package-lock.json backup/package-lock.json.lockfile-lint.backup
+echo "💾 Backed up package-lock.json to backup/package-lock.json.lockfile-lint.backup"
 
 # Remove each package from package-lock.json
 for package in $PACKAGES; do
