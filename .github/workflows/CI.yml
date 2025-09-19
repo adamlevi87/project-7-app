@@ -39,9 +39,22 @@ jobs:
         echo "🔍 Checking package-lock.json consistency..."
         npm ci --dry-run
     
+    - name: Validate registry sources  
+      working-directory: ./it-works-on-my-machine
+      run: |
+        echo "🔍 Checking for private registries..."
+        if grep -q "ironsrc.jfrog.io" package-lock.json; then
+          echo "❌ Private registry detected in package-lock.json"
+          echo "This requires authentication not available in CI"
+          exit 1
+        fi
+        echo "✅ All dependencies use public registries"
+
     - name: Install lockfile-lint
       run: npm install -g lockfile-lint
     
+    
+
     # Validates the integrity and security of the lock file itself. Ensures all package URLs use HTTPS and detects tampering or malformed entries.
     - name: Validate lockfile integrity
       run: |
