@@ -84,6 +84,9 @@ for package in $PACKAGES; do
     jq "del(.dependencies.\"$package\")" package-lock.json > temp.json && mv temp.json package-lock.json
 done
 
+# At the end of the script
+rm -f temp.json
+
 echo ""
 echo "✅ Removed all problematic packages"
 echo "🔄 Run 'npm install' to reinstall with correct registry"
