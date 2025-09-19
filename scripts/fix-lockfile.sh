@@ -5,7 +5,7 @@
 # Usage: ./scripts/fix-lockfile.sh
 
 echo "📦 Installing lockfile-lint..."
-npm install -g lockfile-lint
+sudo npm install -g lockfile-lint
 
 echo "🔍 Running lockfile-lint to check for registry issues..."
 
