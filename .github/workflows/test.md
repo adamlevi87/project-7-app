@@ -178,7 +178,6 @@ Docker Scout CVE scan: on Devdependencies:
 security report-> link-> 
 on
 https://scout.docker.com/vulnerabilities/id/CVE-2024-21538
-npm ls cross-spawn
-or grep -A 5 -B 5 "cross-spawn" package-lock.json
+npm ls cross-spawn-> which execa uses -> which comes from JEST
 
-this shows execa 5.1.1 is the fault-> npm ls execa
+but JEST is a devDependencies.. meaning - update the docker file- npm install command is bad- shouldnt be used for production.

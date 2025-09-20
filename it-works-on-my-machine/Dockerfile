@@ -5,7 +5,7 @@ WORKDIR /app
 
 COPY package.json ./
 # npm install & cleaup
-RUN npm install && rm -rf /root/.npm
+RUN npm ci --omit=dev && rm -rf /root/.npm
 
 # Disabled COPY . .
 #COPY . .
