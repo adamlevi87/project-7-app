@@ -389,20 +389,28 @@ jobs:
     #####
 
     ##### Docker Scout CVE Scan
-    - name: Docker Scout CVE scan with custom filtering
+    - name: Docker Scout CVE scan with grep filtering
       run: |
-        # Run scan and capture output
-        if docker scout cves security-scan:ci-${GITHUB_SHA} --only-severity high,critical --format json > scout_results.json; then
-          echo "✅ No vulnerabilities found"
+        echo "🛡️ Running Docker Scout CVE scan..."
+        echo "Documented exception: CVE-2024-21538 (base image vulnerability, not runtime risk)"
+        
+        # Run scan and capture both output and exit code
+        set +e
+        docker scout cves security-scan:ci-${GITHUB_SHA} --only-severity high,critical > scout_output.txt 2>&1
+        SCOUT_EXIT_CODE=$?
+        set -e
+        
+        if [ $SCOUT_EXIT_CODE -eq 0 ]; then
+          echo "✅ No HIGH/CRITICAL vulnerabilities found"
         else
-          # Check if only CVE-2024-21538 failed
-          FILTERED_RESULTS=$(jq '.vulnerabilities[] | select(.id != "CVE-2024-21538")' scout_results.json)
-          if [ "$FILTERED_RESULTS" = "" ]; then
+          # Check if only our documented CVE is present
+          if grep -q "CVE-2024-21538" scout_output.txt && [ $(grep -c "CVE-" scout_output.txt) -eq 1 ]; then
             echo "✅ Only documented base image CVE found - acceptable"
+            cat scout_output.txt
             exit 0
           else
-            echo "❌ Other vulnerabilities found"
-            cat scout_results.json
+            echo "❌ Other HIGH/CRITICAL vulnerabilities found:"
+            cat scout_output.txt
             exit 1
           fi
         fi
