@@ -3,7 +3,7 @@ FROM node:18-alpine AS builder
 WORKDIR /app
 COPY package.json ./
 COPY package-lock.json ./
-RUN npm ci --omit=dev && rm -rf /root/.npm
+RUN npm ci --omit=dev --ignore-scripts && rm -rf /root/.npm
 COPY server.js ./
 COPY test.sh ./
 
