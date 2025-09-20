@@ -148,7 +148,7 @@ describe('Express App Health Endpoints', () => {
     expect(response.text).toBe('Unhealthy');
   });
 });
---------------------------------
+
 
 in server.js add the export app option (to support he unit tests):
 // Export the app for testing
