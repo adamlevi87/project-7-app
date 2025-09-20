@@ -380,7 +380,7 @@ jobs:
     - name: Docker Scout CVE scan
       run: |
         echo "🛡️ Running Docker Scout CVE scan..."
-        docker scout cves security-scan:ci-${GITHUB_SHA} --exit-code --only-severity high,critical
+        docker scout cves security-scan:ci-${GITHUB_SHA} --only-severity high,critical --exit-code
     #####
 
     ##### Semgrep SAST scanning
