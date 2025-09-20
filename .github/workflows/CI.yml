@@ -108,6 +108,24 @@ jobs:
     #####
 
     ############### Docker Validation
+    ##### Node version compare
+    ##### Making sure the Node Version from the workflow matches the one used in the Docker File
+    - name: Validate Node version consistency
+      run: |
+        # Get major version from workflow (node --version gives v18.17.0)
+        WORKFLOW_MAJOR=$(node --version | sed 's/v//' | cut -d'.' -f1)
+
+        # Get major version from Dockerfile (FROM node:18.17.0-alpine)
+        DOCKERFILE_MAJOR=$(grep "FROM node:" Dockerfile | sed 's/FROM node://' | sed 's/-.*//' | cut -d'.' -f1)
+
+        if [[ "$DOCKERFILE_MAJOR" != "$WORKFLOW_MAJOR" ]]; then
+          echo "Node major version mismatch:"
+          echo "   Dockerfile: $DOCKERFILE_MAJOR"
+          echo "   CI workflow: $WORKFLOW_MAJOR"
+          exit 1
+        fi
+        echo "Node versions consistent"
+
     ##### Hadolint
     ##### hadolint installation- Downloads and installs tool for analyzing Dockerfile best practices.
     ##### hadolint execution- Scans Dockerfile for security issues, inefficiencies, and rule violations.
