@@ -37,6 +37,23 @@ git add .
 git commit -m "fix: format code with prettier"
 git push
 
+------------------------------------------
+
+
+WARN    - CIS-DI-0001: Create a user for the container
+        * Last user should not be root
+WARN    - DKL-DI-0006: Avoid latest tag
+        * Avoid 'latest' tag
+INFO    - CIS-DI-0005: Enable Content trust for Docker
+        * export DOCKER_CONTENT_TRUST=1 before docker pull/build
+INFO    - CIS-DI-0006: Add HEALTHCHECK instruction to the container image
+        * not found HEALTHCHECK statement
+INFO    - DKL-LI-0003: Only put necessary files
+        * Suspicious directory : root/.npm
+        * unnecessary file : app/Dockerfile
+
+
+
 ---------------------------------------
 
 Step 1: Validate package-lock consistency (npm ci --dry-run)

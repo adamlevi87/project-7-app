@@ -140,6 +140,24 @@ jobs:
         echo "🐳 Linting Dockerfile..."
         hadolint Dockerfile
     #####
+
+    ##### Dockle
+    ##### Installs dockle
+    ##### Build and scan
+    - name: Install dockle
+      run: |
+        VERSION=$(curl -s https://api.github.com/repos/goodwithtech/dockle/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        VERSION_NUM=$(echo $VERSION | sed 's/v//')
+        curl -L -o dockle.tar.gz https://github.com/goodwithtech/dockle/releases/download/${VERSION}/dockle_${VERSION_NUM}_Linux-64bit.tar.gz
+        tar zxf dockle.tar.gz
+        sudo mv dockle /usr/local/bin/
+        rm dockle.tar.gz LICENSE README.md
+
+    - name: Run dockle security scan
+      run: |
+        # Build image first for dockle to scan
+        docker build -t dockle-scan .
+        dockle dockle-scan
     ###############
 
     ############### Shell Script Validation
