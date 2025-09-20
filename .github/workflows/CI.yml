@@ -69,7 +69,7 @@ jobs:
     - name: Validate package-lock consistency
       run: |
         echo "🔍 Checking package-lock.json consistency..."
-        npm ci --production --dry-run
+        npm ci --omit=dev --dry-run
 
     ##### License checker
     ##### installs Installs tool to validate dependency licenses against approved list.
@@ -80,7 +80,7 @@ jobs:
     - name: Check license compliance
       run: |
         echo "📄 Checking license compliance..."
-        npm ci --production
+        npm ci --omit=dev
         license-checker --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause' --excludePrivatePackages --production --summary
     #####
     ###############
@@ -326,7 +326,7 @@ jobs:
     - name: Install dependencies
       run: |
         echo "📦 Installing dependencies for security scanning..."
-        npm ci --production
+        npm ci --omit=dev
     #####
 
     ##### Snyk dependency scanning
@@ -376,16 +376,25 @@ jobs:
         echo "🐳 Building Docker image for security scanning..."
         export DOCKER_CONTENT_TRUST=1
         docker build -t security-scan:ci-${GITHUB_SHA} .
-    # TEMPORARY trivy scan container
-    - name: Trivy container scan
-      run: |
-        echo "🛡️ Running Trivy container CVE scan..."
-        trivy image --severity HIGH,CRITICAL security-scan:ci-${GITHUB_SHA}
+    # # TEMPORARY trivy scan container
+    # - name: Trivy container scan
+    #   run: |
+    #     echo "🛡️ Running Trivy container CVE scan..."
+    #     trivy image --severity HIGH,CRITICAL security-scan:ci-${GITHUB_SHA}
 
+    ##### Docker Hub authentication for Scout
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    #####
+
+    ##### Docker Scout CVE Scan
     - name: Docker Scout CVE scan
       run: |
         echo "🛡️ Running Docker Scout CVE scan..."
+        # Block only on CRITICAL, warn on HIGH  
         docker scout cves security-scan:ci-${GITHUB_SHA} --only-severity high,critical --exit-code
+        docker scout cves --only-severity medium,low security-scan:ci-${GITHUB_SHA} || echo "medium and low vulnerabilities found - consider fixing"
     #####
 
     ##### Semgrep SAST scanning

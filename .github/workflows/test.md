@@ -167,4 +167,18 @@ git commit -m "fix: remove bad script block & added new scripts"
 git push
 ---------------------------------------
 
+------------------------------------------
+------------------------------------------
+------------------------------------------
+STEP 3
+------------------------------------------
 
+a possible issue (can document)
+Docker Scout CVE scan: on Devdependencies:
+security report-> link-> 
+on
+https://scout.docker.com/vulnerabilities/id/CVE-2024-21538
+npm ls cross-spawn
+or grep -A 5 -B 5 "cross-spawn" package-lock.json
+
+this shows execa 5.1.1 is the fault-> npm ls execa
