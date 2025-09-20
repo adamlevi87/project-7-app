@@ -93,21 +93,6 @@ jobs:
         fi
         echo "Node versions consistent"
 
-    ##### Hadolint
-    ##### hadolint installation- Downloads and installs tool for analyzing Dockerfile best practices.
-    ##### hadolint execution- Scans Dockerfile for security issues, inefficiencies, and rule violations.
-    - name: Install hadolint
-      run: |
-        wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
-        chmod +x hadolint
-        sudo mv hadolint /usr/local/bin/
-
-    - name: Lint Dockerfile
-      run: |
-        echo "🐳 Linting Dockerfile..."
-        hadolint Dockerfile
-    #####
-
     ##### Dockle
     ##### Installs dockle
     ##### Build and scan
@@ -128,6 +113,22 @@ jobs:
         #docker build -t dockle-scan:$(date +%Y%m%d) . 
         docker build -t dockle-scan:ci-${GITHUB_SHA} .
         dockle --exit-code 1 --exit-level INFO dockle-scan:$(date +%Y%m%d)
+    #####
+    
+    ##### Hadolint
+    ##### hadolint installation- Downloads and installs tool for analyzing Dockerfile best practices.
+    ##### hadolint execution- Scans Dockerfile for security issues, inefficiencies, and rule violations.
+    - name: Install hadolint
+      run: |
+        wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+        chmod +x hadolint
+        sudo mv hadolint /usr/local/bin/
+
+    - name: Lint Dockerfile
+      run: |
+        echo "🐳 Linting Dockerfile..."
+        hadolint Dockerfile
+    #####
     ###############
 
     ############### Code Standards Block
