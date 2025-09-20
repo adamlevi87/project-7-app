@@ -392,9 +392,19 @@ jobs:
     - name: Docker Scout CVE scan
       run: |
         echo "🛡️ Running Docker Scout CVE scan..."
-        # Block only on CRITICAL, warn on HIGH  
-        docker scout cves security-scan:ci-${GITHUB_SHA} --only-severity high,critical --exit-code
-        docker scout cves --only-severity medium,low security-scan:ci-${GITHUB_SHA} || echo "medium and low vulnerabilities found - consider fixing"
+        echo "Ignoring CVE-2024-21538: Base image vulnerability in build tools, no runtime risk"
+        
+        # Fail on HIGH/CRITICAL (except ignored CVE)
+        docker scout cves security-scan:ci-${GITHUB_SHA} \
+          --only-severity high,critical \
+          --ignore-cve CVE-2024-21538 \
+          --exit-code
+    
+        # Warn on MEDIUM/LOW (don't fail build)
+        docker scout cves security-scan:ci-${GITHUB_SHA} \
+          --only-severity medium,low \
+          || echo "Medium and low vulnerabilities found - consider fixing"
+        
     #####
 
     ##### Semgrep SAST scanning

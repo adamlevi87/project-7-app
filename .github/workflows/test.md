@@ -178,12 +178,7 @@ Docker Scout CVE scan: on Devdependencies:
 security report-> link-> 
 on
 https://scout.docker.com/vulnerabilities/id/CVE-2024-21538
-npm ls cross-spawn-> which execa uses -> which comes from JEST
+this is in the base layer-> the production app doesnt in NPM
+this is not critical as our application on RUN time does not use npm, it just uses node. document the solution (plan to migrate) & exclude this from the CI check.
 
-but JEST is a devDependencies.. meaning - update the docker file- npm install command is bad- shouldnt be used for production and copy package-lock.json
-dockerfile updates:
-COPY package.json ./
-COPY package-lock.json ./
-# npm install & cleaup
-RUN npm ci --omit=dev && rm -rf /root/.npm
 
