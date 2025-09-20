@@ -228,7 +228,7 @@ jobs:
     - name: Run npm test
       run: |
         echo "🧪 Running npm test..."
-        npm npm test
+        npm test
     #####
     
     ##### Run newly created npm unit tests [package.json scripts block]
