@@ -1,6 +1,11 @@
 const express = require("express");
 const app = express();
 
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});
+
 let healthy = true;
 app.get('/health', (req, res) => {
   if (healthy) {
@@ -14,7 +19,4 @@ app.get('/disable-health', (req, res) => {
   res.send('Health disabled');
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
-});
+

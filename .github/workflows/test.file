@@ -64,7 +64,9 @@ CIS-DI-0006: Added a node based HEALTHCHECK
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
-  AND - modified app to support a failed health check
+  AND - modified health check logic (to support testing) (this entire app is basically a port open + /health returns a msg)
+  i added the option to disable the health check so i could test failures.
+
 
 
 ---------------------------------------
