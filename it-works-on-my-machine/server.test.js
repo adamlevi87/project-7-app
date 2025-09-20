@@ -2,16 +2,6 @@ const request = require('supertest');
 const app = require('./server');
 
 describe('Express App Health Endpoints', () => {
-  let server;
-
-  beforeAll(() => {
-    server = app.listen(0); // Start on random available port
-  });
-
-  afterAll((done) => {
-    server.close(done); // Close server after tests
-  });
-
   test('GET /health should return healthy message', async () => {
     const response = await request(app).get('/health');
     
