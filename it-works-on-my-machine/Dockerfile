@@ -8,6 +8,8 @@ RUN npm install
 
 # Disable COPY . .
 #COPY . .
+COPY server.js ./
+COPY test.sh ./
 
 # Change ownership to node user
 RUN chown -R node:node /app
