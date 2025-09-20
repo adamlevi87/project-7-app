@@ -4,13 +4,13 @@ FROM node:18-alpine
 WORKDIR /app
 
 COPY package.json ./
-RUN npm install
+# npm install & cleaup
+RUN npm install && rm -rf /root/.npm
 
-# Clean up npm cache before switching users
-RUN rm -rf /root/.npm
-
-# Disable COPY . .
+# Disabled COPY . .
 #COPY . .
+
+# New Copy
 COPY server.js ./
 COPY test.sh ./
 
