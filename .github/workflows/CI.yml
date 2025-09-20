@@ -376,6 +376,11 @@ jobs:
         echo "🐳 Building Docker image for security scanning..."
         export DOCKER_CONTENT_TRUST=1
         docker build -t security-scan:ci-${GITHUB_SHA} .
+    # TEMPORARY trivy scan container
+    - name: Trivy container scan
+      run: |
+        echo "🛡️ Running Trivy container CVE scan..."
+        trivy image --severity HIGH,CRITICAL security-scan:ci-${GITHUB_SHA}
 
     - name: Docker Scout CVE scan
       run: |
