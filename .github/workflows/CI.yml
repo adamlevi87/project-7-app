@@ -110,11 +110,11 @@ jobs:
       run: |
         # Build image first for dockle to scan
         export DOCKER_CONTENT_TRUST=1
-        #docker build -t dockle-scan:$(date +%Y%m%d) . 
         docker build -t dockle-scan:ci-${GITHUB_SHA} .
-        dockle --exit-code 1 --exit-level INFO dockle-scan:$(date +%Y%m%d)
+        dockle --exit-code 1 --exit-level INFO  dockle-scan:ci-${GITHUB_SHA}
+        
     #####
-    
+
     ##### Hadolint
     ##### hadolint installation- Downloads and installs tool for analyzing Dockerfile best practices.
     ##### hadolint execution- Scans Dockerfile for security issues, inefficiencies, and rule violations.
