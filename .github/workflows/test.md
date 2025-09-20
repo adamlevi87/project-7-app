@@ -146,13 +146,14 @@ describe('Express App Health Endpoints', () => {
   });
 });
 
-in server.js add the export app option (to support he unit tests):
+in server.js add/(and replace) to support he unit tests:
 // Export the app for testing
 module.exports = app;
 
 // Only start server if this file is run directly
 /* istanbul ignore next */
 if (require.main === module) {
+  const port = process.env.PORT || 3000;
   app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
   });
