@@ -20,7 +20,7 @@ detected invalid host(s) for package: body-parser@2.2.0-999359dae0e362a7b23405d6
     actual: ironsrc.jfrog.io
 
 developer would PROBABLY do:
-rm package-lock.json && npm install
+rm package-lock.json && npm install --omit=dev
 
 we use:
 fix-lockfile
@@ -74,9 +74,9 @@ res.send("Health disabled");
 });
 
 DKL-LI-0003:
-# Clean up npm cache before switching users
-RUN rm -rf /root/.npm
+# Clean up npm cache before switching users (add /edit)
 
+RUN npm install && rm -rf /root/.npm
 # Disable COPY . .
 #COPY . .
 COPY server.js ./

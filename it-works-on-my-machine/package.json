@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Basic test validation passed ✅\"",
+    "test": "echo \"Basic test validation passed \"",
     "test:unit": "jest --coverage --detectOpenHandles --coverageThreshold='{\"global\":{\"lines\":90}}'",
     "test:integration": "./test.sh"
   },
