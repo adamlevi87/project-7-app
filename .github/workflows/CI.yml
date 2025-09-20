@@ -157,8 +157,9 @@ jobs:
     - name: Run dockle security scan
       run: |
         # Build image first for dockle to scan
-        docker build -t dockle-scan .
-        dockle --exit-code 1 --exit-level INFO dockle-scan
+        #docker build -t dockle-scan:$(date +%Y%m%d) .
+        docker build -t dockle-scan:ci-${GITHUB_SHA} .
+        dockle --exit-code 1 --exit-level INFO dockle-scan:$(date +%Y%m%d)
     ###############
 
     ############### Shell Script Validation

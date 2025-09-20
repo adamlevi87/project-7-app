@@ -1,4 +1,4 @@
-FROM node:18.20.8-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e
+FROM node:18-alpine
 
 
 WORKDIR /app
@@ -8,7 +8,16 @@ RUN npm install
 
 COPY . .
 
-EXPOSE 3000
+# Change ownership to node user
 RUN chown -R node:node /app
+
+# Switch to non-root user
 USER node
+
+EXPOSE 3000
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
+
 CMD ["node", "server.js"]
