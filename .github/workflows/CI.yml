@@ -34,6 +34,8 @@ jobs:
     
     ############### NPM Validations
     ##### lockfile
+    ##### Installs tool to validate package-lock.json security and registry sources.
+    ##### Validates lock file uses HTTPS and only allows public npm registry URLs.
     - name: Install lockfile-lint
       run: npm install -g lockfile-lint
 
@@ -44,18 +46,23 @@ jobs:
     #####
 
     ##### audit
+    ##### Scans package metadata for known security vulnerabilities without installing anything. Uses npm's vulnerability database.
     - name: Security audit
       run: |
         echo "🛡️ Running security audit..."
         npm audit --audit-level moderate
     #####
 
+    ##### NPM clean install
+    ##### Simulates installing exact versions from package-lock.json to check if everything can be resolved correctly. Catches version conflicts, missing packages, or corrupted lock files.
     - name: Validate package-lock consistency
       run: |
         echo "🔍 Checking package-lock.json consistency..."
         npm ci --dry-run
 
     ##### License checker
+    ##### installs Installs tool to validate dependency licenses against approved list.
+    ##### Reads license information from installed packages in node_modules and validates they match allowed license types.
     - name: Install license-checker
       run: npm install -g license-checker
 
@@ -69,6 +76,8 @@ jobs:
 
     ############### Code Standards Block
     ##### ESLint
+    ##### eslint setup Installs ESLint tool and creates a basic configuration file for JavaScript code analysis.
+    ##### Analyzes JavaScript files for syntax errors, potential bugs, and code style violations.
     - name: Setup ESLint
       run: |
         echo "Setting up ESLint..."
@@ -84,6 +93,8 @@ jobs:
     #####
 
     ##### Prettier
+    ##### Installs Prettier code formatting tool.
+    ##### prettier check- Validates that all code files follow consistent formatting rules without modifying them.
     - name: Setup Prettier
       run: npm install -g prettier
     
@@ -98,6 +109,8 @@ jobs:
 
     ############### Docker Validation
     ##### Hadolint
+    ##### hadolint installation- Downloads and installs tool for analyzing Dockerfile best practices.
+    ##### hadolint execution- Scans Dockerfile for security issues, inefficiencies, and rule violations.
     - name: Install hadolint
       run: |
         wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
@@ -113,6 +126,8 @@ jobs:
 
     ############### Shell Script Validation
     ##### Spellcheck
+    ##### shellcheck installation- Installs tool for analyzing shell scripts.
+    ##### shellcheck execution - Analyzes shell scripts for syntax errors, portability issues, and common mistakes.
     - name: Install shellcheck
       run: sudo apt-get update && sudo apt-get install -y shellcheck
     
