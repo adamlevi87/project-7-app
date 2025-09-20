@@ -308,7 +308,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: stage2-testing
     if: ${{ !failure() }}
-    timeout-minutes: 10
   
     defaults:
       run:
@@ -327,13 +326,17 @@ jobs:
     - name: Install dependencies
       run: |
         echo "📦 Installing dependencies for security scanning..."
-        npm ci
+        npm ci --production
     #####
 
     ##### Snyk dependency scanning
-    ##### Scans project dependencies for known security vulnerabilities
+    ##### Install sync which Scans project dependencies for known security vulnerabilities
+    ##### Scan - Identify - Report
     - name: Install Snyk
       run: npm install -g snyk
+
+    - name: Authenticate Snyk
+      run: snyk auth ${{ secrets.SNYK_TOKEN }}
 
     - name: Snyk dependency scan
       run: |
@@ -359,10 +362,13 @@ jobs:
     #####
 
     ##### Docker Scout CVE scanning
-    ##### Scans Docker image for known CVEs
+    ##### Scans Docker image for known CVEs (Common Vulnerabilities and Exposures)
+    ##### Checks base image and application layers for security issues
+    ##### and identifies vulnerable packages installed in the container environment
     - name: Build image for security scanning
       run: |
         echo "🐳 Building Docker image for security scanning..."
+        export DOCKER_CONTENT_TRUST=1
         docker build -t security-scan:ci-${GITHUB_SHA} .
 
     - name: Docker Scout CVE scan
