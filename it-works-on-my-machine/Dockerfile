@@ -1,19 +1,21 @@
-FROM node:18-alpine
-
-
+# Stage 1: Build stage
+FROM node:18-alpine AS builder
 WORKDIR /app
-
 COPY package.json ./
 COPY package-lock.json ./
-# npm install & cleaup
-RUN npm ci --omit=dev --ignore-scripts && rm -rf /root/.npm
-
-# Disabled COPY . .
-#COPY . .
-
-# New Copy
+RUN npm ci --omit=dev && rm -rf /root/.npm
 COPY server.js ./
 COPY test.sh ./
+
+# Stage 2: Runtime stage  
+FROM node:18-alpine AS runtime
+WORKDIR /app
+
+# Copy only what's needed for runtime
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/server.js ./
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/test.sh ./
 
 # Change ownership to node user
 RUN chown -R node:node /app

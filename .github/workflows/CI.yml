@@ -69,7 +69,7 @@ jobs:
     - name: Validate package-lock consistency
       run: |
         echo "🔍 Checking package-lock.json consistency..."
-        npm ci --omit=dev  --ignore-scripts --dry-run
+        npm ci --omit=dev --dry-run
 
     ##### License checker
     ##### installs Installs tool to validate dependency licenses against approved list.
@@ -80,7 +80,7 @@ jobs:
     - name: Check license compliance
       run: |
         echo "📄 Checking license compliance..."
-        npm ci --omit=dev  --ignore-scripts
+        npm ci --omit=dev
         license-checker --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause' --excludePrivatePackages --production --summary
     #####
     ###############
@@ -326,7 +326,7 @@ jobs:
     - name: Install dependencies
       run: |
         echo "📦 Installing dependencies for security scanning..."
-        npm ci --omit=dev  --ignore-scripts
+        npm ci --omit=dev
     #####
 
     ##### Snyk dependency scanning
