@@ -23,6 +23,7 @@ app.get("/disable-health", (req, res) => {
 module.exports = app;
 
 // Only start server if this file is run directly
+/* istanbul ignore next */
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
