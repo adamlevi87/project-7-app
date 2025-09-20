@@ -74,39 +74,6 @@ jobs:
     #####
     ###############
 
-    ############### Code Standards Block
-    ##### ESLint
-    ##### eslint setup Installs ESLint tool and creates a basic configuration file for JavaScript code analysis.
-    ##### Analyzes JavaScript files for syntax errors, potential bugs, and code style violations.
-    - name: Setup ESLint
-      run: |
-        echo "Setting up ESLint..."
-        npm install -g eslint@^8.57.0
-        if [ ! -f .eslintrc.json ]; then
-          echo '{"extends": ["eslint:recommended"], "env": {"node": true, "es2021": true}, "parserOptions": {"ecmaVersion": 12}}' > .eslintrc.json
-        fi
-        
-    - name: Run ESLint
-      run: |
-        echo "🧹 Running ESLint..."
-        eslint . --format unix --ext .js
-    #####
-
-    ##### Prettier
-    ##### Installs Prettier code formatting tool.
-    ##### prettier check- Validates that all code files follow consistent formatting rules without modifying them.
-    - name: Setup Prettier
-      run: npm install -g prettier
-    
-    - name: Check code formatting
-      run: |
-        echo "💅 Checking code formatting..."
-        prettier --check "**/*.{js,json,md}" || {
-          echo "❌ Code formatting issues found. Run 'prettier --write .' to fix."
-          exit 1
-        }
-    #####
-
     ############### Docker Validation
     ##### Node version compare
     ##### Making sure the Node Version from the workflow matches the one used in the Docker File
@@ -161,6 +128,40 @@ jobs:
         #docker build -t dockle-scan:$(date +%Y%m%d) . 
         docker build -t dockle-scan:ci-${GITHUB_SHA} .
         dockle --exit-code 1 --exit-level INFO dockle-scan:$(date +%Y%m%d)
+    ###############
+
+    ############### Code Standards Block
+    ##### ESLint
+    ##### eslint setup Installs ESLint tool and creates a basic configuration file for JavaScript code analysis.
+    ##### Analyzes JavaScript files for syntax errors, potential bugs, and code style violations.
+    - name: Setup ESLint
+      run: |
+        echo "Setting up ESLint..."
+        npm install -g eslint@^8.57.0
+        if [ ! -f .eslintrc.json ]; then
+          echo '{"extends": ["eslint:recommended"], "env": {"node": true, "es2021": true}, "parserOptions": {"ecmaVersion": 12}}' > .eslintrc.json
+        fi
+        
+    - name: Run ESLint
+      run: |
+        echo "🧹 Running ESLint..."
+        eslint . --format unix --ext .js
+    #####
+
+    ##### Prettier
+    ##### Installs Prettier code formatting tool.
+    ##### prettier check- Validates that all code files follow consistent formatting rules without modifying them.
+    - name: Setup Prettier
+      run: npm install -g prettier
+    
+    - name: Check code formatting
+      run: |
+        echo "💅 Checking code formatting..."
+        prettier --check "**/*.{js,json,md}" || {
+          echo "❌ Code formatting issues found. Run 'prettier --write .' to fix."
+          exit 1
+        }
+    #####
     ###############
 
     ############### Shell Script Validation

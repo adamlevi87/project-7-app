@@ -28,16 +28,7 @@ npm ci --dry-run
 version mismatch - we change either the package.json or lock.json
 chaning package.json made more sense to me
 ^5.1.0
-
---------------------------------------
-Setup Prettier (code formatting)
-fix by 
-prettier --write .
-git add .
-git commit -m "fix: format code with prettier"
-git push
-
-------------------------------------------
+-------------------------------------
 dockle
 
 WARN    - CIS-DI-0001: Create a user for the container
@@ -77,7 +68,15 @@ COPY server.js ./
 COPY test.sh ./
 
 
+--------------------------------------
+Setup Prettier (code formatting)
+fix by running:
+prettier --write .
+git add .
+git commit -m "fix: format code with prettier"
+git push
 
+------------------------------------------
 
 ---------------------------------------
 
