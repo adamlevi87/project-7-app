@@ -144,6 +144,7 @@ jobs:
     ##### Dockle
     ##### Installs dockle
     ##### Build and scan
+    ##### docke exit-code options: empty(dont specify), WARN, INFO
     - name: Install dockle
       run: |
         VERSION=$(curl -s https://api.github.com/repos/goodwithtech/dockle/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -157,7 +158,7 @@ jobs:
       run: |
         # Build image first for dockle to scan
         docker build -t dockle-scan .
-        dockle dockle-scan
+        dockle --exit-code 1 --exit-level INFO dockle-scan
     ###############
 
     ############### Shell Script Validation
