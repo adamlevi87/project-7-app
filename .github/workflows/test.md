@@ -114,6 +114,10 @@ we do add:
     "supertest": "^6.3.3"
   }
 }
+run npm install (again)
+git add .
+git commit -m "fix: remove bad script block & added new scripts"
+git push
 ---------------------------------------
 
 
