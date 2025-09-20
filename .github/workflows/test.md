@@ -107,7 +107,7 @@ add real tests,
 we edit the package.json (add\replace these)
 {
   "scripts": {
-    "test": "echo \"Basic test validation passed ✅\"",
+    "test": "echo \"Basic test validation passed \"",
     "test:unit": "jest --coverage --forceExit --coverageThreshold='{\"global\":{\"lines\":100}}'",
     "test:integration": "./test.sh"
   },
