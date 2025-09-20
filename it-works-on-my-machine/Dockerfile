@@ -6,6 +6,9 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install
 
+# Clean up npm cache before switching users
+RUN rm -rf /root/.npm
+
 # Disable COPY . .
 #COPY . .
 COPY server.js ./
