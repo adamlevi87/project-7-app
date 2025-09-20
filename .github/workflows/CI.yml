@@ -216,7 +216,14 @@ jobs:
         npm ci
     #####
 
-    ##### Run npm unit tests [package.json scripts block]
+    ##### Run npm tests [package.json scripts block]
+    - name: Run npm test
+      run: |
+        echo "🧪 Running npm test..."
+        npm npm test
+    #####
+    
+    ##### Run newly created npm unit tests [package.json scripts block]
     - name: Run unit tests
       run: |
         echo "🧪 Running unit tests with coverage..."
