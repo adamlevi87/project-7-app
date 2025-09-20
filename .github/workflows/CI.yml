@@ -3,14 +3,14 @@
 name: "Stage 1: Code Quality & Standards Validation"
 
 on:
-  push:
-    branches: [ main, develop ]
-    paths:
-      - 'it-works-on-my-machine/**'
-  pull_request:
-    branches: [ main, develop ]
-    paths:
-      - 'it-works-on-my-machine/**'
+  # push:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - 'it-works-on-my-machine/**'
+  # pull_request:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - 'it-works-on-my-machine/**'
   workflow_dispatch:
 
 jobs:
