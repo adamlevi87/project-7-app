@@ -11,5 +11,5 @@ runs:
         node-version: '18'
         cache: 'npm'
         cache-dependency-path: 'it-works-on-my-machine/package-lock.json'
-      shell: bash
-
+    - shell: bash
+      run: echo "Node.js setup complete"
