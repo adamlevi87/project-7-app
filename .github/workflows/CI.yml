@@ -413,6 +413,8 @@ jobs:
       run: pip3 install semgrep
 
     - name: Run Semgrep SAST scan
+      env:
+        SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
       run: |
         echo "🔍 Running Semgrep static analysis security testing..."
         semgrep --config=auto --error --strict
@@ -435,3 +437,4 @@ jobs:
         fi
     #####
     ###############
+    ##############################

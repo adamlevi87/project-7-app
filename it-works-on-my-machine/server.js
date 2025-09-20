@@ -1,17 +1,8 @@
 const express = require("express");
+const csrf = require('csurf');
 const app = express();
 
-// Export the app for testing
-module.exports = app;
-
-// Only start server if this file is run directly
-/* istanbul ignore next */
-if (require.main === module) {
-  const port = process.env.PORT || 3000;
-  app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-  });
-}
+app.use(csrf());
 
 let healthy = true;
 app.get("/health", (req, res) => {
@@ -21,7 +12,19 @@ app.get("/health", (req, res) => {
     res.status(500).send("Unhealthy");
   }
 });
+
 app.get("/disable-health", (req, res) => {
   healthy = false;
   res.send("Health disabled");
 });
+
+// Export the app for testing
+module.exports = app;
+
+/* istanbul ignore next */
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+  });
+}

@@ -181,4 +181,9 @@ https://scout.docker.com/vulnerabilities/id/CVE-2024-21538
 this is in the base layer-> the production app doesnt in NPM
 this is not critical as our application on RUN time does not use npm, it just uses node. document the solution (plan to migrate) & exclude this from the CI check.
 
+-----------
+Run Semgrep SAST scan
+javascript.express.security.audit.express-check-csurf-middleware-usage.
+
+edit server.js :
 
