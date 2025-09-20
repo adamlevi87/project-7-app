@@ -108,7 +108,7 @@ we edit the package.json (add\replace these)
 {
   "scripts": {
     "test": "echo \"Basic test validation passed ✅\"",
-    "test:unit": "jest --coverage --forceExit --coverageThreshold='{\"global\":{\"lines\":100}}'",
+    "test:unit": "jest --coverage --coverageThreshold='{\"global\":{\"lines\":100}}'",
     "test:integration": "./test.sh"
   },
   "devDependencies": {
@@ -123,6 +123,16 @@ const request = require('supertest');
 const app = require('./server');
 
 describe('Express App Health Endpoints', () => {
+  let server;
+
+  beforeAll(() => {
+    server = app.listen(0); // Start on random available port
+  });
+
+  afterAll((done) => {
+    server.close(done); // Close server after tests
+  });
+
   test('GET /health should return healthy message', async () => {
     const response = await request(app).get('/health');
     
@@ -138,10 +148,7 @@ describe('Express App Health Endpoints', () => {
   });
 
   test('GET /health should return 500 after being disabled', async () => {
-    // First disable health
     await request(app).get('/disable-health');
-    
-    // Then check health status
     const response = await request(app).get('/health');
     
     expect(response.status).toBe(500);
@@ -155,6 +162,7 @@ in server.js add the export app option (to support he unit tests):
 module.exports = app;
 
 // Only start server if this file is run directly
+/* istanbul ignore next */
 if (require.main === module) {
   app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);

@@ -2,6 +2,16 @@ const request = require('supertest');
 const app = require('./server');
 
 describe('Express App Health Endpoints', () => {
+  let server;
+
+  beforeAll(() => {
+    server = app.listen(0); // Start on random available port
+  });
+
+  afterAll((done) => {
+    server.close(done); // Close server after tests
+  });
+
   test('GET /health should return healthy message', async () => {
     const response = await request(app).get('/health');
     
@@ -17,10 +27,7 @@ describe('Express App Health Endpoints', () => {
   });
 
   test('GET /health should return 500 after being disabled', async () => {
-    // First disable health
     await request(app).get('/disable-health');
-    
-    // Then check health status
     const response = await request(app).get('/health');
     
     expect(response.status).toBe(500);
