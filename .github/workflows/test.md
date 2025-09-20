@@ -67,6 +67,16 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   AND - modified health check logic (to support testing) (this entire app is basically a port open + /health returns a msg)
   i added the option to disable the health check so i could test failures.
 
+DKL-LI-0003:
+# Clean up npm cache before switching users
+RUN rm -rf /root/.npm
+
+# Disable COPY . .
+#COPY . .
+COPY server.js ./
+COPY test.sh ./
+
+
 
 
 ---------------------------------------
