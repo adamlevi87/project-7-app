@@ -12,6 +12,12 @@ on:
   #   paths:
   #     - 'it-works-on-my-machine/**'
   workflow_dispatch:
+    inputs:
+      skip_stage1:
+        description: 'Skip Stage 1 (Quality checks)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   stage1-quality:
