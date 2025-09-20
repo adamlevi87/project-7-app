@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Basic test validation passed ✅\"",
-    "test:unit": "jest --coverage --forceExit --coverageThreshold='{\"global\":{\"lines\":90}}'",
+    "test:unit": "jest --coverage --detectOpenHandles --coverageThreshold='{\"global\":{\"lines\":90}}'",
     "test:integration": "./test.sh"
   },
   "keywords": [],
