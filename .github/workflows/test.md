@@ -4,7 +4,10 @@ COPY package.json ./
 COPY package-lock.json ./
 RUN npm ci
 
-
+------------------------------------------
+------------------------------------------
+------------------------------------------
+STEP 1
 ---------------------
 lockfile-lint:
 many:
@@ -76,12 +79,41 @@ git add .
 git commit -m "fix: format code with prettier"
 git push
 
-------------------------------------------
 
+------------------------------------------
+------------------------------------------
+------------------------------------------
+STEP 2
+---------------------------------------
+npm test
+Error: no test specified
+package.json (default that came with the project)
+has a "script" - a simple command that always breaks.
+the fix:
+remove that OR 
+add real tests,
+we do add:
+{
+  "name": "it-works-on-my-machine",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest --coverage",
+    "test:integration": "./test.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^6.3.3"
+  }
+}
 ---------------------------------------
 
-Step 1: Validate package-lock consistency (npm ci --dry-run)
-├─ Issue Found: Version mismatch (Express 4.x vs 5.x)
-├─ Resolution: npm install 
-└─ Note: Might not be correct decision, but proceeding
 
