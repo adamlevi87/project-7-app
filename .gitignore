@@ -3,3 +3,6 @@ it-works-on-my-machine/backup/
 
 # node modules
 **node_modules/
+
+# coverage
+**coverage/*

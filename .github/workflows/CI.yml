@@ -146,6 +146,7 @@ jobs:
     ##### ESLint
     ##### eslint setup Installs ESLint tool and creates a basic configuration file for JavaScript code analysis.
     ##### Analyzes JavaScript files for syntax errors, potential bugs, and code style violations.
+    ##### config supports jest for later stages
     - name: Setup ESLint
       run: |
         echo "Setting up ESLint..."
