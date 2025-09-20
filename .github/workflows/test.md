@@ -180,4 +180,10 @@ on
 https://scout.docker.com/vulnerabilities/id/CVE-2024-21538
 npm ls cross-spawn-> which execa uses -> which comes from JEST
 
-but JEST is a devDependencies.. meaning - update the docker file- npm install command is bad- shouldnt be used for production.
+but JEST is a devDependencies.. meaning - update the docker file- npm install command is bad- shouldnt be used for production and copy package-lock.json
+dockerfile updates:
+COPY package.json ./
+COPY package-lock.json ./
+# npm install & cleaup
+RUN npm ci --omit=dev && rm -rf /root/.npm
+
