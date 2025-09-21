@@ -1,8 +1,8 @@
 # backup folder shouldnt be in git
-it-works-on-my-machine/backup/
+**/backup/
 
 # node modules
 **node_modules/
 
 # coverage
-it-works-on-my-machine/coverage/
+**/coverage/

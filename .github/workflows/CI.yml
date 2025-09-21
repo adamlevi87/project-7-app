@@ -61,7 +61,7 @@ jobs:
     - name: Security audit
       run: |
         echo "🛡️ Running security audit..."
-        npm audit --audit-level moderate
+        npm audit --audit-level high
     #####
 
     ##### NPM clean install - dry
