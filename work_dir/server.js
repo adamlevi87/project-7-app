@@ -16,3 +16,14 @@ const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
 });
+
+// Export the app for testing
+module.exports = app;
+
+/* istanbul ignore next */
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+  });
+}
