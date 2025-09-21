@@ -3,11 +3,19 @@ const session = require("express-session");
 const csrf = require("csurf");
 const app = express();
 
-// Session middleware (required for csurf)
+// Session middleware with secure settings
 app.use(session({
-  secret: "your-secret-key",
+  secret: process.env.SESSION_SECRET || "fallback-secret-for-dev",
+  name: "sessionId", // Custom session cookie name
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === "production", // HTTPS only in production
+    httpOnly: true, // Prevent XSS attacks
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours expiration
+    path: "/", // Cookie path
+    domain: process.env.COOKIE_DOMAIN || undefined // Set domain if needed
+  }
 }));
 
 // CSRF protection middleware
