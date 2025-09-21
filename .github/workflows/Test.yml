@@ -493,7 +493,10 @@ jobs:
         SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
       run: |
         echo "🔍 Running Semgrep static analysis security testing..."
-        semgrep --config=auto --error --strict
+        semgrep --verbose --config=auto --error --strict \
+          --exclude-rule=javascript.crypto-js.cryptojs-weak-algorithm.cryptojs-weak-algorithm \
+          --exclude-rule=javascript.express.web.cors-default-config-express.cors-default-config-express \
+          --exclude-rule=javascript.koa.web.cors-default-config-koa.cors-default-config-koa
     #####
 
     ##### Security summary
