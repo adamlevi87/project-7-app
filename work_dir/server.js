@@ -1,4 +1,4 @@
-const express = require('express');
+const express = require("express");
 const app = express();
 let healthy = true;
 app.get("/health", (req, res) => {
@@ -15,4 +15,4 @@ app.get("/disable-health", (req, res) => {
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
-}); 
+});
