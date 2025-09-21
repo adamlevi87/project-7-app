@@ -816,40 +816,64 @@ jobs:
     #####
     ###############
 
-    ############### Compliance Checks Block
-    ##### SonarQube Scanner
-    ##### Comprehensive static code analysis for quality metrics
-    ##### Measures technical debt, code coverage, maintainability, and security hotspots
-    - name: Install SonarQube Scanner
+    ##### ESLint Code Quality Gates
+    ##### Enforces code quality standards with configurable rules and thresholds
+    ##### Fails build on quality violations - pure CLI, no external dependencies
+    - name: Run ESLint quality gates
       run: |
-        # Download and install SonarQube Scanner
-        wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-4.8.0.2856-linux.zip
-        unzip sonar-scanner-cli-4.8.0.2856-linux.zip
-        sudo mv sonar-scanner-4.8.0.2856-linux /opt/sonar-scanner
-        sudo ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
-        rm sonar-scanner-cli-4.8.0.2856-linux.zip
-
-    - name: Run SonarQube analysis
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      run: |
-        echo "🔍 Running SonarQube code quality analysis..."
+        echo "🔍 Running ESLint code quality analysis..."
         
-        # Create sonar-project.properties if it doesn't exist
-        if [ ! -f "sonar-project.properties" ]; then
-          cat > sonar-project.properties << 'EOF'
-        sonar.projectKey=it-works-on-my-machine
-        sonar.projectName=It Works On My Machine
-        sonar.projectVersion=1.0
-        sonar.sources=.
-        sonar.exclusions=node_modules/**,coverage/**,*.log
-        sonar.javascript.lcov.reportPaths=coverage/lcov.info
+        # Install ESLint if not already available
+        npm install --save-dev eslint@latest
+        
+        # Create ESLint config if it doesn't exist (CommonJS format)
+        if [ ! -f "eslint.config.js" ]; then
+          cat > eslint.config.js << 'EOF'
+        const js = require("@eslint/js");
+
+        module.exports = [
+          js.configs.recommended,
+          {
+            languageOptions: {
+              ecmaVersion: 2021,
+              sourceType: "commonjs",
+              globals: {
+                // Node.js globals
+                global: "readonly",
+                process: "readonly", 
+                Buffer: "readonly",
+                console: "readonly",
+                require: "readonly",
+                module: "readonly",
+                exports: "readonly",
+                __dirname: "readonly",
+                __filename: "readonly",
+                // Jest globals
+                describe: "readonly",
+                test: "readonly",
+                expect: "readonly",
+                beforeEach: "readonly",
+                afterEach: "readonly"
+              }
+            },
+            rules: {
+              "complexity": ["error", 10],
+              "max-lines": ["error", 300], 
+              "max-params": ["error", 4],
+              "no-console": "off",
+              "no-unused-vars": "error",
+              "no-var": "error"
+            }
+          }
+        ];
         EOF
         fi
         
-        # Run SonarQube scanner
-        sonar-scanner -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_HOST_URL
+        # Run ESLint with quality gates (fail on any errors, max 5 warnings)
+        echo "Running ESLint on files:"
+        find . -name "*.js" -not -path "./node_modules/*" | head -5
+        npx eslint . --max-warnings 5
+        echo "✅ ESLint found no quality issues"
     #####
 
     ##### FOSSA License Compliance
