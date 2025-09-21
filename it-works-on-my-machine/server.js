@@ -1,15 +1,10 @@
 const express = require("express");
-const csrf = require("csurf"); // semgrep specifically looks for "csurf" import
+const csrf = require('csurf');
 const app = express();
 
-// This is the pattern semgrep expects to see
-const csrfProtection = csrf({ cookie: true });
-
-// Apply CSRF protection (this satisfies semgrep detection)
-app.use(csrfProtection);
+app.use(csrf());
 
 let healthy = true;
-
 app.get("/health", (req, res) => {
   if (healthy) {
     res.send("Still working... on *my* machine 🧃");
@@ -26,7 +21,6 @@ app.get("/disable-health", (req, res) => {
 // Export the app for testing
 module.exports = app;
 
-// Only start server if this file is run directly
 /* istanbul ignore next */
 if (require.main === module) {
   const port = process.env.PORT || 3000;
