@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY package.json ./
 COPY package-lock.json ./
-RUN npm install --omit=dev
+RUN npm install --omit=dev && rm -rf /root/.npm
 
 #COPY . .
 COPY server.js ./
