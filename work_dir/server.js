@@ -25,7 +25,9 @@ app.use(
 const csrfProtection = csrf();
 
 app.use(csrfProtection);
+
 let healthy = true;
+
 app.get("/health", (req, res) => {
   if (healthy) {
     res.send("Still working... on *my* machine 🧃");
