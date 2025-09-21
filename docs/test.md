@@ -27,21 +27,42 @@ fix-lockfile
 
 
 ------------------------
-npm ci --dry-run
+npm ci --dry-run / version control script
 version mismatch - we change either the package.json or lock.json
 chaning package.json made more sense to me
 ^5.1.0
 -------------------------------------
+
+
+
+
+
+
+
+
+
+
+WARN	- CIS-DI-0001: Create a user for the container
+	* Last user should not be root
+INFO	- CIS-DI-0006: Add HEALTHCHECK instruction to the container image
+	* not found HEALTHCHECK statement
+INFO	- DKL-LI-0003: Only put necessary files
+	* Suspicious directory : root/.npm 
+	* unnecessary file : app/Dockerfile 
+  
 dockle
 
 WARN    - CIS-DI-0001: Create a user for the container
         * Last user should not be root
+        
 WARN    - DKL-DI-0006: Avoid latest tag
         * Avoid 'latest' tag
 INFO    - CIS-DI-0005: Enable Content trust for Docker
         * export DOCKER_CONTENT_TRUST=1 before docker pull/build
+
 INFO    - CIS-DI-0006: Add HEALTHCHECK instruction to the container image
         * not found HEALTHCHECK statement
+
 INFO    - DKL-LI-0003: Only put necessary files
         * Suspicious directory : root/.npm
         * unnecessary file : app/Dockerfile
