@@ -881,7 +881,15 @@ jobs:
     ##### Essential for enterprise environments with legal requirements
     - name: Install FOSSA CLI
       run: |
-        curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install.sh | bash
+        # Install to ~/bin instead (user directory)
+        mkdir -p ~/bin
+        export PATH="$HOME/bin:$PATH"
+        
+        # Use official install script but install to user directory
+        curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | BINDIR="$HOME/bin" bash
+        
+        # Verify
+        fossa --version
 
     - name: Run FOSSA license analysis
       env:
@@ -889,10 +897,13 @@ jobs:
       run: |
         echo "📄 Running FOSSA license compliance analysis..."
         
-        # Run FOSSA analysis (allow to fail if no API key configured)
+        # Add ~/bin to PATH for this step too
+        export PATH="$HOME/bin:$PATH"
+        
+        # Run only analyze with push-only key
         if [ -n "$FOSSA_API_KEY" ]; then
           fossa analyze || echo "FOSSA analysis completed with warnings"
-          fossa test || echo "FOSSA license test completed with warnings"
+          echo "✅ FOSSA analysis uploaded - check webapp for results"
         else
           echo "ℹ️ No FOSSA API key configured, performing local license check..."
           
