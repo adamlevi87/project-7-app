@@ -13,6 +13,7 @@ app.use(session({
     secure: process.env.NODE_ENV === "production", // HTTPS only in production
     httpOnly: true, // Prevent XSS attacks
     maxAge: 24 * 60 * 60 * 1000, // 24 hours expiration
+    expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // Explicit expiration date
     path: "/", // Cookie path
     domain: process.env.COOKIE_DOMAIN || undefined // Set domain if needed
   }
