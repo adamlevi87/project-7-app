@@ -6,7 +6,8 @@ WORKDIR /app
 COPY package.json ./
 COPY package-lock.json ./
 # run npm
-RUN npm ci --omit=dev && rm -rf /root/.npm
+RUN npm ci --omit=dev 
+# RUN npm ci --omit=dev && rm -rf /root/.npm
 
 # Copy Additional relevant files for production
 COPY server.js ./
