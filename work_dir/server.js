@@ -1,5 +1,7 @@
 const express = require("express");
+const csrf = require('csurf');
 const app = express();
+app.use(csrf());
 
 let healthy = true;
 app.get("/health", (req, res) => {
