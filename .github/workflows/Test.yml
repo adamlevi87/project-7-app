@@ -729,6 +729,18 @@ jobs:
         docker stop perf-container
         docker rm perf-container
     
+    - name: Debug file location
+      if: always()
+      run: |
+        echo "Current working directory:"
+        pwd
+        echo "Files in current directory:"
+        ls -la
+        echo "Looking for performance-baseline.txt:"
+        find . -name "performance-baseline.txt" -type f
+        echo "Full path check:"
+        ls -la performance-baseline.txt || echo "File not found in current directory"
+
     - name: Upload performance baseline
       uses: actions/upload-artifact@v4
       if: always()
