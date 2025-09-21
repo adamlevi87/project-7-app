@@ -1,15 +1,9 @@
 # Stage 1: Build stage
 FROM node:18-alpine AS builder
 WORKDIR /app
-
-# Copy files for npm
 COPY package.json ./
 COPY package-lock.json ./
-# run npm
-RUN npm ci --omit=dev 
-# RUN npm ci --omit=dev && rm -rf /root/.npm
-
-# Copy Additional relevant files for production
+RUN npm ci --omit=dev && rm -rf /root/.npm
 COPY server.js ./
 COPY test.sh ./
 
@@ -29,7 +23,6 @@ RUN chown -R node:node /app
 # Switch to non-root user
 USER node
 
-# Expose the relevant port
 EXPOSE 3000
 
 # Add health check

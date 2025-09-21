@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: "Test_new_dir"
+name: "CI Plan - Tests and Validations"
 
 on:
   # push:
