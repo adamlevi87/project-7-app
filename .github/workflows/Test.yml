@@ -737,7 +737,9 @@ jobs:
     ##### Web performance auditing for frontend applications
     ##### Measures page load speed, accessibility, SEO, and best practices
     - name: Install Lighthouse CI
-      run: npm install -g @lhci/cli@0.12.x
+      run: |
+        est echo "🔍 Installing Lighthouse CI..."
+        npm install -g @lhci/cli@0.15.1 --silent
 
     - name: Run Lighthouse CI
       run: |
