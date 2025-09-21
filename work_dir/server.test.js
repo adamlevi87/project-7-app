@@ -6,16 +6,26 @@ test("DEBUG: Check what's actually happening", async () => {
     const tokenResponse = await request(app).get("/csrf-token");
     console.log("Token response:", tokenResponse.status, tokenResponse.body);
 
-    // Test POST without token
+    // Test POST without token - capture full response
     const noTokenResponse = await request(app).post("/disable-health");
-    console.log("No token response:", noTokenResponse.status, noTokenResponse.body);
+    console.log("No token response:", {
+      status: noTokenResponse.status,
+      body: noTokenResponse.body,
+      text: noTokenResponse.text,
+      error: noTokenResponse.error
+    });
 
-    // Test POST with token
+    // Test POST with token - capture full response
     if (tokenResponse.body.csrfToken) {
       const withTokenResponse = await request(app)
         .post("/disable-health")
         .set("csrf-token", tokenResponse.body.csrfToken);
-      console.log("With token response:", withTokenResponse.status, withTokenResponse.body);
+      console.log("With token response:", {
+        status: withTokenResponse.status,
+        body: withTokenResponse.body,
+        text: withTokenResponse.text,
+        error: withTokenResponse.error
+      });
     }
   });
   
