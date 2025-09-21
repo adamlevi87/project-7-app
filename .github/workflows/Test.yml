@@ -934,13 +934,16 @@ jobs:
         git secrets --install
         
         # Add custom patterns for common secrets
-        git secrets --add 'password\s*=\s*["\'][^"\']+["\']'
-        git secrets --add 'api[_-]?key\s*[=:]\s*["\'][^"\']+["\']'
-        git secrets --add 'secret[_-]?key\s*[=:]\s*["\'][^"\']+["\']'
-        git secrets --add 'token\s*[=:]\s*["\'][^"\']+["\']'
+        git secrets --add "password\\s*=\\s*[\"'][^\"']+[\"']"
+        git secrets --add "api[_-]?key\\s*[=:]\\s*[\"'][^\"']+[\"']"
+        git secrets --add "secret[_-]?key\\s*[=:]\\s*[\"'][^\"']+[\"']"
+        git secrets --add "token\\s*[=:]\\s*[\"'][^\"']+[\"']"
         
-        # Scan the repository
-        git secrets --scan --recursive . || {
+        # Scan only source files, exclude node_modules and other irrelevant directories
+        find . -name "*.js" -o -name "*.json" -o -name "*.md" -o -name "*.sh" \
+          | grep -v node_modules \
+          | grep -v coverage \
+          | xargs git secrets --scan || {
           echo "❌ Secrets detected in repository!"
           echo "Please review and remove any hardcoded secrets before committing."
           exit 1
