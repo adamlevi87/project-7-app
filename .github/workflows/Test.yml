@@ -728,18 +728,6 @@ jobs:
         # Cleanup
         docker stop perf-container
         docker rm perf-container
-    
-    - name: Debug file location
-      if: always()
-      run: |
-        echo "Current working directory:"
-        pwd
-        echo "Files in current directory:"
-        ls -la
-        echo "Looking for performance-baseline.txt:"
-        find . -name "performance-baseline.txt" -type f
-        echo "Full path check:"
-        ls -la performance-baseline.txt || echo "File not found in current directory"
 
     - name: Upload performance baseline
       uses: actions/upload-artifact@v4
@@ -764,17 +752,28 @@ jobs:
         # Start application for testing
         docker run -d --name lighthouse-app -p 3000:3000 ci-image:ci-${GITHUB_SHA}
         
-        # Wait for app to be ready
+        # Better health check with more debugging
+        echo "⏳ Waiting for application to start..."
         for i in {1..30}; do
-          if curl -f http://localhost:3000 >/dev/null 2>&1; then
+          if curl -f http://localhost:3000/health >/dev/null 2>&1; then
             echo "✅ Application ready for Lighthouse testing!"
             break
+          elif [ $i -eq 30 ]; then
+            echo "❌ Application failed to start after 30 seconds"
+            docker logs lighthouse-app
+            exit 1
           fi
-          sleep 1
+          echo "Attempt $i/30 - waiting..."
+          sleep 2
         done
         
-        # Run Lighthouse
-        lhci autorun --upload.target=temporary-public-storage --collect.url=http://localhost:3000 || echo "Lighthouse completed with warnings"
+        # Test the endpoint manually before Lighthouse
+        echo "🧪 Testing endpoint before Lighthouse:"
+        curl -v http://localhost:3000/ || echo "Main endpoint failed"
+        curl -v http://localhost:3000/health || echo "Health endpoint failed"
+        
+        # Run Lighthouse with minimal config
+        lhci autorun --collect.url=http://localhost:3000 --collect.numberOfRuns=1 || echo "Lighthouse completed with warnings"
         
         # Cleanup
         docker stop lighthouse-app
