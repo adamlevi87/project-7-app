@@ -64,6 +64,36 @@ jobs:
         npm audit --audit-level high
     #####
 
+    ##### Package.json vs package-lock.json version sync check
+    ##### Validates that dependency versions in package.json match package-lock.json
+    ##### Catches version mismatches before npm ci attempts to resolve dependencies
+    - name: Check package.json vs package-lock.json version sync
+      run: |
+        echo "🔄 Checking package.json vs package-lock.json version sync..."
+        node -e "
+        const pkg = require('./package.json');
+        const lock = require('./package-lock.json');
+        const lockDeps = lock.packages?.['']?.dependencies || {};
+        let hasMismatch = false;
+        
+        for (const [name, version] of Object.entries(pkg.dependencies || {})) {
+          if (lockDeps[name] && lockDeps[name] !== version) {
+            console.error(\`❌ MISMATCH: \${name}\`);
+            console.error(\`   package.json: \${version}\`);
+            console.error(\`   package-lock.json: \${lockDeps[name]}\`);
+            hasMismatch = true;
+          }
+        }
+        
+        if (hasMismatch) {
+          console.error('\\n💥 Version mismatch detected! Run npm install to sync files.');
+          process.exit(1);
+        } else {
+          console.log('✅ package.json and package-lock.json versions are in sync');
+        }
+        "
+    #####
+
     ##### NPM clean install - dry
     ##### Simulates installing exact versions from package-lock.json to check if everything can be resolved correctly. Catches version conflicts, missing packages, or corrupted lock files.
     - name: Validate package-lock consistency
