@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CI/CD Validation Journey: DevOps ↔ Developer Conversation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f6f8fa;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+        }
+        
+        .conversation-container {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .message {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 8px;
+            position: relative;
+        }
+        
+        .devops-message {
+            background: #f1f8ff;
+            border-right: 4px solid #0366d6;
+            margin-right: 100px;
+        }
+        
+        .developer-message {
+            background: #f6ffed;
+            border-left: 4px solid #28a745;
+            margin-left: 100px;
+            margin-top: 8px;
+        }
+        
+        .speaker {
+            font-weight: bold;
+            color: #24292e;
+            margin-bottom: 8px;
+        }
+        
+        .devops-speaker {
+            color: #0366d6;
+        }
+        
+        .developer-speaker {
+            color: #28a745;
+        }
+        
+        .stage-header {
+            background: #6f42c1;
+            color: white;
+            padding: 12px 20px;
+            margin: 30px 0 0 0;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+        }
+        
+        .ci-output {
+            background: #f8f8f8;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .code-block {
+            background: #f6f8fa;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 10px 0;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            position: relative;
+            white-space: pre;
+        }
+        
+        .copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #f6f8fa;
+            border: 1px solid #d1d5da;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 11px;
+            cursor: pointer;
+            color: #586069;
+        }
+        
+        .copy-button:hover {
+            background: #e1e4e8;
+        }
+        
+        .timestamp {
+            font-size: 11px;
+            color: #6a737d;
+            margin-top: 8px;
+        }
+        
+        @media (max-width: 768px) {
+            .devops-message {
+                margin-right: 20px;
+            }
+            .developer-message {
+                margin-left: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 CI/CD Validation Journey</h1>
+        <h2>DevOps ↔ Developer Conversation</h2>
+        <p><em>"It works on my machine" → "It works everywhere"</em></p>
+    </div>
+
+    <div class="stage-header">
+        📋 Project Handoff
+    </div>
+    
+    <div class="conversation-container">
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Hey Jordan! I got assigned to set up CI/CD for your "it-works-on-my-machine" app. Mind if I take a look at the codebase?
+            <div class="timestamp">9:15 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Absolutely! It's a simple Node.js Express microservice. I've got everything working perfectly on my local machine. There's a Dockerfile and a basic test script included.
+            <div class="timestamp">9:18 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Great! I see the structure. Let me start by setting up a proper CI pipeline. I'll run it through our standard validation stages. Starting with Stage 1: Code Quality checks...
+            <div class="timestamp">9:22 AM</div>
+        </div>
+    </div>
+
+    <div class="stage-header">
+        🔍 Stage 1: Code Quality & Standards Validation
+    </div>
+    
+    <div class="conversation-container">
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Uh oh... we've got some issues:
+
+            <div class="ci-output error">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ❌ <strong>Stage 1 Failed!</strong><br>
+                - lockfile-lint: FAIL - package-lock.json integrity issues<br>
+                &nbsp;&nbsp;Found private registry: ironsrc.jfrog.io<br>
+                &nbsp;&nbsp;Expected: registry.npmjs.org<br>
+            </div>
+
+            Jordan, I'm seeing multiple occurrences of the same issues here. It seems that your package-lock.json is pointing to a private npm registry (ironsrc.jfrog.io) instead of the public one. Do we need to authenticate with this registry for production? Should I set up access credentials?
+            <div class="timestamp">9:25 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Oh no! That's from our development process - we were testing some internal packages from that JFrog registry. It's definitely not needed for production anymore.
+            <div class="timestamp">9:27 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Let me manually clean that up from the lockfile. I'll just edit out those private registry references:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button># Open package-lock.json and find/replace:
+# "ironsrc.jfrog.io" → "registry.npmjs.org"
+# Remove any private registry URLs
+
+git add package-lock.json
+git commit -m "fix: remove private registry references"
+git push</pre>
+            <div class="timestamp">9:28 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            I understand, so those dependencies are not needed outside the local dev env. Let me re-trigger the pipeline...
+
+            <div class="ci-output success">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ✅ <strong>Passed:</strong><br>
+                - lockfile-lint: ✅ PASS - Only public registry used<br>
+                - npm audit: ✅ PASS - No vulnerabilities<br>
+            </div>
+
+            <div class="ci-output error">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ❌ <strong>New step failing:</strong><br>
+                MISMATCH: express<br>
+                &nbsp;&nbsp;package.json: ^4.18.2<br>
+                &nbsp;&nbsp;package-lock.json: ^5.1.0<br>
+                💥 Version mismatch detected! Run npm install to sync files
+            </div>
+
+            How is this possible? Did you used to have v5 in package.json and then downgraded to v4 without running npm install? What are your instructions here - which version should we use?
+            <div class="timestamp">9:30 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Yes, I am sorry I totally forgot about this. The application was tested using express v5.
+            <div class="timestamp">9:32 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Let me update the package.json and run npm install:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button># Update package.json: "express": "^5.1.0"
+# before running the next command
+# Jordan also validates that there are no other clear differences between
+# the package.json & the package-lock.json
+
+npm install
+git add package.json package-lock.json
+git commit -m "fix: update express to v5.1.0 as tested"
+git push</pre>
+            <div class="timestamp">9:33 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Ah! Now that makes sense, I see your updates. Let me trigger the pipeline again...
+
+            <div class="ci-output success">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ✅ <strong>Passed:</strong><br>
+                - lockfile-lint: ✅ PASS - Only public registry used<br>
+                - npm audit: ✅ PASS - No vulnerabilities<br>
+                - Validate package-lock consistency: ✅ PASS<br>
+                - Check license compliance: ✅ PASS<br>
+                - Validate Node version consistency: ✅ PASS<br>
+                - hadolint: ✅ PASS - Dockerfile looks good<br>
+                - shellcheck: ✅ PASS - test.sh is clean
+            </div>
+
+            <div class="ci-output error">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ❌ <strong>Additional issues found:</strong><br>
+                Step run dockle security scan returned an error:<br>
+                WARN - CIS-DI-0001: Create a user for the container<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;* Last user should not be root<br>
+                WARN - DKL-DI-0006: Avoid latest tag<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;* Avoid 'latest' tag<br>
+                INFO - CIS-DI-0005: Enable Content trust for Docker<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;* export DOCKER_CONTENT_TRUST=1 before docker pull/build<br>
+                INFO - CIS-DI-0006: Add HEALTHCHECK instruction to the container image<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;* not found HEALTHCHECK statement<br>
+                INFO - DKL-LI-0003: Only put necessary files<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;* Suspicious directory : root/.npm<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;* unnecessary file : app/Dockerfile
+            </div>
+
+            To fix the root user usage and unnecessary files being copied over and the suspicious directory: I'll remove the generic copy all (COPY . .) and copy only the files we need (package-lock.json, server.js, test.sh). We will also delete the .npm folder - it is not required to be part of the container. Also the npm install for a "production" image should ignore devDependencies.
+            <br><br>
+            Alex updates the dockerfile:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>COPY package.json ./
+COPY package-lock.json ./
+RUN npm install --omit=dev && rm -rf /root/.npm
+
+#COPY . .
+COPY server.js ./
+COPY test.sh ./
+
+# Change ownership to node user
+RUN chown -R node:node /app
+
+# Switch to non-root user
+USER node</pre>
+            <div class="timestamp">9:37 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Regarding the health check instructions for the container, I will add this to the dockerfile (after the USER node and Before the EXPOSE):
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button># Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"</pre>
+
+            Update the entire server.js file to fit the new logic:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>const express = require('express');
+const app = express();
+let healthy = true;
+app.get("/health", (req, res) => {
+  if (healthy) {
+    res.send("Still working... on *my* machine 🧃");
+  } else {
+    res.status(500).send("Unhealthy");
+  }
+});
+app.get("/disable-health", (req, res) => {
+  healthy = false;
+  res.send("Health disabled");
+});
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server is running on http://localhost:${port}`);
+});</pre>
+            <div class="timestamp">9:40 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            <em>(Alex thinks to himself...)</em>
+            <br><br>
+            Regarding the other issues - the latest tag warning and content trust - I need to update the CI to support verification of the integrity and publisher of specific images from docker hub, and when building the images in the workflow to use a SHA tag.
+            <br><br>
+            So on every docker build in the CI workflow I'll add:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>export DOCKER_CONTENT_TRUST=1
+docker build -t dockle-scan:ci-${GITHUB_SHA} .</pre>
+
+            What do you think Jordan?
+            <br><br>
+            <em>(Alex thinks to himself... "I don't think I am done with the dockerfile yet - I will need to have another look later on")</em>
+            <div class="timestamp">9:42 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Regarding my part, I understand the direction, the code looks good. Let's push the relevant changes together.
+            <div class="timestamp">9:44 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            I have updated everything and triggered the CI.
+
+            <div class="ci-output success">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ✅ <strong>Passed:</strong><br>
+                - Run dockle security scan: ✅ PASSED!<br>
+                - Lint Dockerfile: ✅ PASS<br>
+                - Run ESLint: ✅ PASS
+            </div>
+
+            <div class="ci-output error">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ❌ <strong>Failed:</strong><br>
+                Check code formatting<br>
+                <br>
+                Checking formatting...<br>
+                [warn] server.js<br>
+                [warn] Code style issues found in the above file. Run Prettier with --write to fix.<br>
+                ❌ Code formatting issues found. Run 'prettier --write .' to fix.
+            </div>
+
+            Jordan, we stick with prettier suggestions for formatting. Let's go over the suggestions and apply the changes using prettier --write.
+            <div class="timestamp">9:47 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Let me push the code and trigger the CI again.
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>prettier --write .
+git add .
+git commit -m "fix: format code with prettier"
+git push</pre>
+            <div class="timestamp">9:50 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Now everything in stage 1 ran with no issues! Moving into stage 2.
+            <div class="timestamp">9:52 AM</div>
+        </div>
+    </div>
+
+    <div class="stage-header">
+        🧪 Stage 2: Testing Suite
+    </div>
+    
+    <div class="conversation-container">
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            We have a failure in step: Run npm test
+
+            <div class="ci-output error">
+                <strong>🤖 CI Bot Output:</strong><br>
+                > it-works-on-my-machine@1.0.0 test<br>
+                > echo "Error: no test specified" && exit 1<br>
+                Error: no test specified
+            </div>
+
+            I've checked the package.json and it seems the script block has a command that always returns an error.
+            <br><br>
+            What is this Jordan?
+            <div class="timestamp">9:55 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Oh that's my bad, I totally forgot about this. The only real test we need is the test.sh one.
+            <div class="timestamp">9:57 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            I understand.
+            <br><br>
+            <em>(Alex thinks to himself about CI best practices for Javascript based apps specifically and suggests this...)</em>
+            <br><br>
+            I will edit the package.json:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>{
+  "name": "it-works-on-my-machine",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Basic test validation passed \"",
+    "test:unit": "jest --coverage --detectOpenHandles --coverageThreshold='{\"global\":{\"lines\":90}}'",
+    "test:integration": "./test.sh"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "jest": "^30.1.3",
+    "supertest": "^7.1.4"
+  }
+}</pre>
+
+            (must add a new line at the end, prettier needs it for validation).
+            <br><br>
+            And update the CI workflow with the relevant additional tests.
+            <div class="timestamp">9:59 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Alex creates a server.test.js in the working directory, which maps everything he wants Jest to test (the basic GET health, GET disable health and GET health when health is disabled):
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>const request = require("supertest");
+const app = require("./server");
+describe("Express App Health Endpoints", () => {
+  test("GET /health should return healthy message", async () => {
+    const response = await request(app).get("/health");
+    expect(response.status).toBe(200);
+    expect(response.text).toBe("Still working... on *my* machine 🧃");
+  });
+  test("GET /disable-health should disable health check", async () => {
+    const response = await request(app).get("/disable-health");
+    expect(response.status).toBe(200);
+    expect(response.text).toBe("Health disabled");
+  });
+  test("GET /health should return 500 after being disabled", async () => {
+    await request(app).get("/disable-health");
+    const response = await request(app).get("/health");
+    expect(response.status).toBe(500);
+    expect(response.text).toBe("Unhealthy");
+  });
+});</pre>
+            <div class="timestamp">10:02 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Alex edits the server.js: (must add a new line at the end, prettier needs it for validation).
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>const express = require("express");
+const app = express();
+
+let healthy = true;
+app.get("/health", (req, res) => {
+  if (healthy) {
+    res.send("Still working... on *my* machine 🧃");
+  } else {
+    res.status(500).send("Unhealthy");
+  }
+});
+app.get("/disable-health", (req, res) => {
+  healthy = false;
+  res.send("Health disabled");
+});
+
+// Export the app for testing
+module.exports = app;
+
+/* istanbul ignore next */
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+  });
+}
+</pre>
+            <div class="timestamp">10:03 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            He explains that the jest server.test.js will try and hit everything in the code, and that the edit to the server.js is to support (load) the app into the tests (and also exclude it from the line-hit count of the test).
+            <br><br>
+            Alex also mentions npm ci --include=dev only runs in the CI tests workflow.
+            <div class="timestamp">10:04 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Sounds about right, let me go over the package.json changes carefully and run an npm install --include=dev to update the package-lock.json.
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>npm install --include=dev
+git add .
+git commit -m "feat: add jest unit tests and update package.json"
+git push</pre>
+
+            He then pushes the changes.
+            <div class="timestamp">10:06 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Now everything in stage 2 ran with no issues! Moving into stage 3!
+            <div class="timestamp">10:08 AM</div>
+        </div>
+    </div>
+
+    <div class="stage-header">
+        🔒 Stage 3: Security Scanning
+    </div>
+    
+    <div class="conversation-container">
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Docker Scout CVE scan failed. We have received an error regarding an issue with the base image:
+            <br><br>
+            <a href="https://scout.docker.com/vulnerabilities/id/CVE-2024-21538" target="_blank">https://scout.docker.com/vulnerabilities/id/CVE-2024-21538</a>
+            <br><br>
+            Alex and Jordan read up on the issue. The issue is with the NPM itself, but our application only uses NPM on build time and not on run time, they decide to document it and create an overview plan to migrate the application to a new base image in the future.
+            <br><br>
+            Alex takes this chance to separate the dockerfile into stages, as follows, the entire dockerfile:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button># Stage 1: Build stage
+FROM node:18-alpine AS builder
+WORKDIR /app
+
+# Copy files for npm
+COPY package.json ./
+COPY package-lock.json ./
+# run npm
+RUN npm ci --omit=dev
+
+# Copy Additional relevant files for production
+COPY server.js ./
+COPY test.sh ./
+
+# Stage 2: Runtime stage  
+FROM node:18-alpine AS runtime
+WORKDIR /app
+
+# Copy only what's needed for runtime
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/server.js ./
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/test.sh ./
+
+# Change ownership to node user
+RUN chown -R node:node /app
+
+# Switch to non-root user
+USER node
+
+# Expose the relevant port
+EXPOSE 3000
+
+# Add health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
+
+CMD ["node", "server.js"]
+</pre>
+            <div class="timestamp">10:10 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Alex also noticed an error with the step run Semgrep SAST scan:
+
+            <div class="ci-output error">
+                <strong>🤖 CI Bot Output:</strong><br>
+                server.js<br>
+                ❱ javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage<br>
+                A CSRF middleware was not detected in your express application. Ensure you are either using one such<br>
+                as `csurf` or `csrf` (see rule references) and/or you are properly doing CSRF validation in your<br>
+                routes with a token or cookies.<br>
+                Details: https://sg.run/BxzR<br>
+                2┆ const app = express();
+            </div>
+
+            Jordan had to go for a bit, Alex is left by himself.
+            <br><br>
+            Alex calls his good friend Claude, which seems to always be up - he never sleeps- after trial and error they implement CSRF middleware protection, they edit server.js together: (must add a new line at the end, prettier needs it for validation).
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>const express = require("express");
+const session = require("express-session");
+const csrf = require("csurf");
+const app = express();
+
+// Session middleware with secure settings
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "fallback-secret-for-dev",
+    name: "sessionId", // Custom session cookie name
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: true, // Force HTTPS-only cookies
+      httpOnly: true, // Prevent XSS attacks
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours expiration
+      expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // Explicit expiration date
+      path: "/", // Cookie path
+      domain: process.env.COOKIE_DOMAIN || undefined, // Set domain if needed
+    },
+  }),
+);
+
+// CSRF protection middleware
+const csrfProtection = csrf();
+
+app.use(csrfProtection);
+
+let healthy = true;
+
+app.get("/health", (req, res) => {
+  if (healthy) {
+    res.send("Still working... on *my* machine 🧃");
+  } else {
+    res.status(500).send("Unhealthy");
+  }
+});
+
+app.get("/disable-health", (req, res) => {
+  healthy = false;
+  res.send("Health disabled");
+});
+
+// Export the app for testing
+module.exports = app;
+
+/* istanbul ignore next */
+if (require.main === module) {
+  const port = process.env.PORT || 3000;
+  app.listen(port, () => {
+    console.log(`Server is running on http://localhost:${port}`);
+  });
+}
+</pre>
+            <div class="timestamp">10:12 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Alex runs:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>npm install csurf
+npm install express-session
+
+git add .
+git commit -m "npm install csurf - express-session and server.js adjustments- protection against middleware"
+git push
+</pre>
+            <div class="timestamp">10:14 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            Now everything in stage 3 ran with no issues! Moving into stage 4!
+            <div class="timestamp">10:15 AM</div>
+        </div>
+    </div>
+
+    <div class="stage-header">
+        🐳 Stage 4: Container Validation
+    </div>
+    
+    <div class="conversation-container">
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            The entire stage ran with no issues:
+
+            <div class="ci-output success">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ✅ <strong>All Passed:</strong><br>
+                - Build image for container validation: ✅ PASS<br>
+                - Run dive image layer analysis: ✅ PASS<br>
+                - Run container structure tests: ✅ PASS<br>
+                - Run runtime validation: ✅ PASS
+            </div>
+            <div class="timestamp">10:17 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Oh I just came back! Good news!
+            <div class="timestamp">10:18 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            We are on a roll! Onto stage 5!
+            <div class="timestamp">10:19 AM</div>
+        </div>
+    </div>
+
+    <div class="stage-header">
+        📊 Stage 5: Performance & Compliance
+    </div>
+    
+    <div class="conversation-container">
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            So far so good! We need to remember that we have a baseline for Resources requests for this app from the Step: Capture performance baseline - available as an artifact in the workflow run.
+            <div class="timestamp">10:20 AM</div>
+        </div>
+
+        <div class="message developer-message">
+            <div class="speaker developer-speaker">💻 Jordan (Developer)</div>
+            Noice
+            <div class="timestamp">10:21 AM</div>
+        </div>
+
+        <div class="message devops-message">
+            <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
+            No issues found in this stage:
+
+            <div class="ci-output success">
+                <strong>🤖 CI Bot Output:</strong><br>
+                ✅ <strong>All Passed:</strong><br>
+                - Capture performance baseline: ✅ PASS<br>
+                - Run Lighthouse CI: ✅ PASS<br>
+                - Bundle analysis: ✅ PASS<br>
+                - Run ESLint quality gates: ✅ PASS<br>
+                - Run FOSSA license analysis: ✅ PASS<br>
+                - Run git-secrets scan: ✅ PASS
+            </div>
+            <div class="timestamp">10:23 AM</div>
+        </div>
+    </div>
+
+    <footer style="text-align: center; margin-top: 40px; padding: 20px; color: #6a737d; border-top: 1px solid #e1e4e8;">
+        <p><em>Conversation transcript from CI/CD validation process - "it-works-on-my-machine" project</em></p>
+        <p><strong>Status:</strong> Stage 2 in progress | Testing implementation complete</p>
+    </footer>
+
+    <script>
+        function copyToClipboard(button) {
+            const codeBlock = button.parentElement;
+            
+            // Get the text content, excluding the button
+            const text = Array.from(codeBlock.childNodes)
+                .filter(node => node !== button)
+                .map(node => node.textContent || '')
+                .join('')
+                .trim();
+            
+            navigator.clipboard.writeText(text).then(function() {
+                button.textContent = 'Copied!';
+                setTimeout(function() {
+                    button.textContent = 'Copy';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Could not copy text: ', err);
+            });
+        }
+    </script>
+</body>
+</html>
