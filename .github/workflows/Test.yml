@@ -1,0 +1,454 @@
+# .github/workflows/ci.yml
+
+name: "Stage 1: Code Quality & Standards Validation"
+
+on:
+  # push:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - 'work_dir/**'
+  # pull_request:
+  #   branches: [ main, develop ]
+  #   paths:
+  #     - 'work_dir/**'
+  workflow_dispatch:
+    inputs:
+      skip_stage1:
+        description: 'Skip Stage 1 (Quality checks)'
+        required: false
+        default: true
+        type: boolean
+      skip_stage2:
+        description: 'Skip Stage 2 (Testing)'
+        required: false
+        default: true
+        type: boolean
+env:
+  WORKFLOW_TIMEOUT: 15
+
+jobs:
+  stage1-quality:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.skip_stage1 != true }}
+    
+    defaults:
+      run:
+        working-directory: work_dir/
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: ./.github/actions/setup-node
+    
+    ############################## Step 1: Code Quality & Standards Validation
+    ############### NPM Validations
+    ##### lockfile
+    ##### Installs tool to validate package-lock.json security and registry sources.
+    ##### Validates lock file uses HTTPS and only allows public npm registry URLs.
+    - name: Install lockfile-lint
+      run: npm install -g lockfile-lint
+
+    - name: Validate lockfile integrity
+      run: |
+        echo "🔒 Validating lockfile integrity..."
+        lockfile-lint --path package-lock.json --validate-https --allowed-hosts npm registry.npmjs.org
+    #####
+
+    ##### audit
+    ##### Scans package metadata for known security vulnerabilities without installing anything. Uses npm's vulnerability database.
+    - name: Security audit
+      run: |
+        echo "🛡️ Running security audit..."
+        npm audit --audit-level moderate
+    #####
+
+    ##### NPM clean install - dry
+    ##### Simulates installing exact versions from package-lock.json to check if everything can be resolved correctly. Catches version conflicts, missing packages, or corrupted lock files.
+    - name: Validate package-lock consistency
+      run: |
+        echo "🔍 Checking package-lock.json consistency..."
+        npm ci --omit=dev --dry-run
+
+    ##### License checker
+    ##### installs Installs tool to validate dependency licenses against approved list.
+    ##### Reads license information from installed packages in node_modules and validates they match allowed license types.
+    - name: Install license-checker
+      run: npm install -g license-checker
+
+    - name: Check license compliance
+      run: |
+        echo "📄 Checking license compliance..."
+        npm ci --omit=dev
+        license-checker --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause' --excludePrivatePackages --production --summary
+    #####
+    ###############
+
+    ############### Docker Validation
+    ##### Node version compare
+    ##### Making sure the Node Version from the workflow matches the one used in the Docker File
+    - name: Validate Node version consistency
+      run: |
+        # Get major version from workflow (node --version gives v18.17.0)
+        WORKFLOW_MAJOR=$(node --version | sed 's/v//' | cut -d'.' -f1)
+
+        # Get major version from Dockerfile (FROM node:18.17.0-alpine)
+        DOCKERFILE_MAJOR=$(grep "FROM node:" Dockerfile | sed 's/FROM node://' | sed 's/-.*//' | cut -d'.' -f1)
+
+        if [[ "$DOCKERFILE_MAJOR" != "$WORKFLOW_MAJOR" ]]; then
+          echo "Node major version mismatch:"
+          echo "   Dockerfile: $DOCKERFILE_MAJOR"
+          echo "   CI workflow: $WORKFLOW_MAJOR"
+          exit 1
+        fi
+        echo "Node versions consistent"
+
+    ##### Dockle
+    ##### Installs dockle
+    ##### Build and scan
+    ##### docke exit-code options: empty(dont specify), WARN, INFO
+    - name: Install dockle
+      run: |
+        VERSION=$(curl -s https://api.github.com/repos/goodwithtech/dockle/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        VERSION_NUM=$(echo $VERSION | sed 's/v//')
+        curl -L -o dockle.tar.gz https://github.com/goodwithtech/dockle/releases/download/${VERSION}/dockle_${VERSION_NUM}_Linux-64bit.tar.gz
+        tar zxf dockle.tar.gz
+        sudo mv dockle /usr/local/bin/
+        rm dockle.tar.gz LICENSE README.md
+
+    - name: Run dockle security scan
+      run: |
+        # Build image first for dockle to scan
+        export DOCKER_CONTENT_TRUST=1
+        docker build -t dockle-scan:ci-${GITHUB_SHA} .
+        dockle --exit-code 1 --exit-level INFO  dockle-scan:ci-${GITHUB_SHA}
+        
+    #####
+
+    ##### Hadolint
+    ##### hadolint installation- Downloads and installs tool for analyzing Dockerfile best practices.
+    ##### hadolint execution- Scans Dockerfile for security issues, inefficiencies, and rule violations.
+    - name: Install hadolint
+      run: |
+        wget -O hadolint https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64
+        chmod +x hadolint
+        sudo mv hadolint /usr/local/bin/
+
+    - name: Lint Dockerfile
+      run: |
+        echo "🐳 Linting Dockerfile..."
+        hadolint Dockerfile
+    #####
+    ###############
+
+    ############### Code Standards Block
+    ##### ESLint
+    ##### eslint setup Installs ESLint tool and creates a basic configuration file for JavaScript code analysis.
+    ##### Analyzes JavaScript files for syntax errors, potential bugs, and code style violations.
+    ##### config supports jest for later stages
+    - name: Setup ESLint
+      run: |
+        echo "Setting up ESLint..."
+        npm install -g eslint@^8.57.0
+        if [ ! -f .eslintrc.json ]; then
+          echo '{"extends": ["eslint:recommended"], "env": {"node": true, "es2021": true, "jest": true}, "parserOptions": {"ecmaVersion": 12}}' > .eslintrc.json
+        fi
+        
+    - name: Run ESLint
+      run: |
+        echo "🧹 Running ESLint..."
+        eslint . --format unix --ext .js
+    #####
+
+    ##### Prettier
+    ##### Installs Prettier code formatting tool.
+    ##### prettier check- Validates that all code files follow consistent formatting rules without modifying them.
+    - name: Setup Prettier
+      run: npm install -g prettier
+    
+    - name: Check code formatting
+      run: |
+        echo "💅 Checking code formatting..."
+        prettier --check "**/*.{js,json,md}" || {
+          echo "❌ Code formatting issues found. Run 'prettier --write .' to fix."
+          exit 1
+        }
+    #####
+    ###############
+
+    ############### Shell Script Validation
+    ##### Spellcheck
+    ##### shellcheck installation- Installs tool for analyzing shell scripts.
+    ##### shellcheck execution - Analyzes shell scripts for syntax errors, portability issues, and common mistakes.
+    - name: Install shellcheck
+      run: sudo apt-get update && sudo apt-get install -y shellcheck
+    
+    - name: Lint shell scripts
+      run: |
+        echo "📜 Linting shell scripts..."
+        find . -name "*.sh" -type f -exec shellcheck {} \;
+    #####
+    ###############
+
+    ###############
+    ##### Summary
+    - name: Stage 1 Summary
+      if: always()  # Always run, but show actual results
+      run: |
+        echo "📊 Stage 1: Code Quality & Standards Validation Results"
+        echo "Status: ${{ job.status }}"
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ All checks passed"
+        else
+          echo "❌ Some checks failed - see above for details"
+        fi
+    #####
+    ###############
+    ##############################
+
+  stage2-testing:
+    runs-on: ubuntu-latest
+    needs: stage1-quality
+    if: ${{ inputs.skip_stage2 != true && !failure() }}
+    
+    defaults:
+      run:
+        working-directory: work_dir/
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: ./.github/actions/setup-node
+    
+    ############################## Stage 2: Testing Suite
+    ############### Unit Tests Block
+    ##### NPM clean install include devDependencies (support testing)
+    - name: Install dependencies
+      run: |
+        echo "📦 Installing dependencies..."
+        npm ci --include=dev
+    #####
+
+    ##### Run npm tests [package.json scripts block]
+    - name: Run npm test
+      run: |
+        echo "🧪 Running npm test..."
+        npm test
+    #####
+    
+    ##### Run newly created npm unit tests [package.json scripts block]
+    - name: Run unit tests
+      run: |
+        echo "🧪 Running unit tests with coverage..."
+        npm run test:unit
+    #####
+
+    ##### Upload Code coverage report
+    - name: Upload coverage reports
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-reports
+        path: work_dir/coverage/
+    #####
+    ###############
+
+    ############### Integration Tests Block
+    ##### Docker Build
+    - name: Build test Docker image
+      run: |
+        echo "🐳 Building Docker image for integration tests..."
+        export DOCKER_CONTENT_TRUST=1
+        docker build -t test-image:ci-${GITHUB_SHA} .
+    #####
+
+    ##### Start Container detached
+    ##### Docker run + curl'ing for the health check
+    - name: Start application container
+      run: |
+        echo "🚀 Starting application container..."
+        docker run -d --name test-app -p 3000:3000 test-image:ci-${GITHUB_SHA}
+        
+        echo "⏳ Waiting for application to start..."
+        for i in {1..30}; do
+          if curl -f http://localhost:3000/health >/dev/null 2>&1; then
+            echo "✅ Application is ready!"
+            break
+          fi
+          echo "Attempt $i/30 - waiting..."
+          sleep 2
+        done
+    #####
+
+    ##### Run tests
+    ##### run the basic sh script and npm test called integration [from the package.json]
+    - name: Run integration tests
+      run: |
+        echo "🔗 Running integration tests..."
+        chmod +x test.sh
+        npm run test:integration
+    #####
+
+    ##### Clean up
+    - name: Cleanup containers
+      if: always()
+      run: |
+        echo "🧹 Cleaning up containers..."
+        docker stop test-app || true
+        docker rm test-app || true
+        docker rmi test-image:ci-${GITHUB_SHA} || true
+    #####
+    ###############
+    ##############################
+    
+  stage3-security:
+    runs-on: ubuntu-latest
+    needs: stage2-testing
+    if: ${{ !failure() }}
+  
+    defaults:
+      run:
+        working-directory: work_dir/
+  
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: ./.github/actions/setup-node
+
+    ############################## Step 3: Security Scanning
+    ############### Security Scanning Block
+    ##### Install dependencies for scanning
+    - name: Install dependencies
+      run: |
+        echo "📦 Installing dependencies for security scanning..."
+        npm ci --omit=dev
+    #####
+
+    ##### Snyk dependency scanning
+    ##### Install sync which Scans project dependencies for known security vulnerabilities
+    ##### Scan - Identify - Report
+    - name: Install Snyk
+      run: npm install -g snyk
+
+    - name: Authenticate Snyk
+      run: snyk auth ${{ secrets.SNYK_TOKEN }}
+
+    - name: Snyk dependency scan
+      run: |
+        echo "🔍 Running Snyk dependency vulnerability scan..."
+        snyk test --severity-threshold=high
+    #####
+
+    ##### Trivy filesystem scanning
+    ##### Scans filesystem for vulnerabilities and configuration issues
+    - name: Install Trivy
+      run: |
+        sudo apt-get update
+        sudo apt-get install wget apt-transport-https gnupg lsb-release
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+        sudo apt-get update
+        sudo apt-get install trivy
+
+    - name: Run Trivy filesystem scan
+      run: |
+        echo "🔐 Running Trivy filesystem security scan..."
+        trivy fs . --security-checks vuln,config --severity HIGH,CRITICAL
+    #####
+
+    ##### Docker Scout CVE scanning
+    ##### Scans Docker image for known CVEs (Common Vulnerabilities and Exposures)
+    ##### Checks base image and application layers for security issues
+    ##### and identifies vulnerable packages installed in the container environment
+    - name: Install Docker Scout
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh | sh -s --
+        # Add to PATH for this session
+        echo "$HOME/.docker/scout" >> $GITHUB_PATH
+
+    - name: Build image for security scanning
+      run: |
+        echo "🐳 Building Docker image for security scanning..."
+        export DOCKER_CONTENT_TRUST=1
+        docker build -t security-scan:ci-${GITHUB_SHA} .
+    # # TEMPORARY trivy scan container
+    # - name: Trivy container scan
+    #   run: |
+    #     echo "🛡️ Running Trivy container CVE scan..."
+    #     trivy image --severity HIGH,CRITICAL security-scan:ci-${GITHUB_SHA}
+
+    ##### Docker Hub authentication for Scout
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    #####
+
+    ##### Docker Scout CVE Scan
+    - name: Docker Scout CVE scan with grep filtering
+      run: |
+        echo "🛡️ Running Docker Scout CVE scan..."
+        echo "Documented exception: CVE-2024-21538 (base image vulnerability, not runtime risk)"
+        
+        # Run scan and capture both output and exit code
+        set +e
+        docker scout cves security-scan:ci-${GITHUB_SHA} --only-severity high,critical > scout_output.txt 2>&1
+        SCOUT_EXIT_CODE=$?
+        set -e
+        
+        if [ $SCOUT_EXIT_CODE -eq 0 ]; then
+          echo "✅ No HIGH/CRITICAL vulnerabilities found"
+        else
+          # Check if only our documented CVE is present
+          if grep -q "CVE-2024-21538" scout_output.txt && [ $(grep -c "CVE-" scout_output.txt) -eq 1 ]; then
+            echo "✅ Only documented base image CVE found - acceptable"
+            cat scout_output.txt
+            exit 0
+          else
+            echo "❌ Other HIGH/CRITICAL vulnerabilities found:"
+            cat scout_output.txt
+            exit 1
+          fi
+        fi
+    
+        # Warn on MEDIUM/LOW (don't fail build)
+        docker scout cves security-scan:ci-${GITHUB_SHA} \
+          --only-severity medium,low \
+          || echo "Medium and low vulnerabilities found - consider fixing"
+    #####
+
+    ##### Semgrep SAST scanning
+    ##### Static Application Security Testing for code vulnerabilities
+    - name: Install Semgrep
+      run: pip3 install semgrep
+
+    - name: Run Semgrep SAST scan
+      env:
+        SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      run: |
+        echo "🔍 Running Semgrep static analysis security testing..."
+        semgrep --config=auto --error --strict
+    #####
+
+    ##### Security summary
+    - name: Stage 3 Summary
+      if: always()
+      run: |
+        echo "📊 Stage 3: Security Scanning Results"
+        echo "Status: ${{ job.status }}"
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ All security scans passed"
+          echo "  - Dependency vulnerabilities: ✅"
+          echo "  - Filesystem security: ✅"
+          echo "  - Container CVEs: ✅"
+          echo "  - Static analysis: ✅"
+        else
+          echo "❌ Security issues found - see above for details"
+        fi
+    #####
+    ###############
+    ##############################
