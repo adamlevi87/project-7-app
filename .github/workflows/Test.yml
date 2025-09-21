@@ -817,9 +817,9 @@ jobs:
     ###############
 
     ############### Compliance Checks Block
-    ##### SonarQube Scanner (Local Analysis)
+    ##### SonarQube Scanner
     ##### Comprehensive static code analysis for quality metrics
-    ##### Generates local reports without uploading to external servers
+    ##### Measures technical debt, code coverage, maintainability, and security hotspots
     - name: Install SonarQube Scanner
       run: |
         # Download and install SonarQube Scanner
@@ -829,31 +829,28 @@ jobs:
         sudo ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
         rm sonar-scanner-cli-4.8.0.2856-linux.zip
 
-    - name: Run local SonarQube analysis
+    - name: Run SonarQube analysis
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       run: |
-        echo "🔍 Running local SonarQube code quality analysis..."
+        echo "🔍 Running SonarQube code quality analysis..."
         
-        # Create local sonar-project.properties
-        cat > sonar-project.properties << 'EOF'
-          sonar.projectKey=it-works-on-my-machine
-          sonar.projectName=It Works On My Machine
-          sonar.projectVersion=1.0
-          sonar.sources=.
-          sonar.exclusions=node_modules/**,coverage/**,*.log
-          sonar.javascript.lcov.reportPaths=coverage/lcov.info
-          sonar.working.directory=.sonar
+        # Create sonar-project.properties if it doesn't exist
+        if [ ! -f "sonar-project.properties" ]; then
+          cat > sonar-project.properties << 'EOF'
+        sonar.projectKey=it-works-on-my-machine
+        sonar.projectName=It Works On My Machine
+        sonar.projectVersion=1.0
+        sonar.sources=.
+        sonar.exclusions=node_modules/**,coverage/**,*.log
+        sonar.javascript.lcov.reportPaths=coverage/lcov.info
         EOF
-    
-        # Run local analysis (no server upload)
-        sonar-scanner -Dsonar.analysis.mode=issues || echo "Local SonarQube analysis completed"
-
-    - name: Upload SonarQube reports
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: sonarqube-reports
-        path: .sonar/
-        #####
+        fi
+        
+        # Run SonarQube scanner
+        sonar-scanner -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_HOST_URL
+    #####
 
     ##### FOSSA License Compliance
     ##### Scans dependencies for license compliance issues
