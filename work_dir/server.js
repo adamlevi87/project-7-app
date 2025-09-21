@@ -8,7 +8,7 @@ const tokens = csrf();
 // Store CSRF secrets (in a real app, you'd use sessions/database)
 const csrfSecrets = new Map();
 
-// Middleware to parse request bodies
+// IMPORTANT: Middleware to parse request bodies MUST come before CSRF middleware
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
