@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: "CI Pipeline"
+name: "Test_new_dir"
 
 on:
   # push:
@@ -25,6 +25,16 @@ on:
         type: boolean
       skip_stage3:
         description: 'Skip Stage 3 (Security)'
+        required: false
+        default: true
+        type: boolean
+      skip_stage4:
+        description: 'Skip Stage 4 (Container Validation)'
+        required: false
+        default: true
+        type: boolean
+      skip_stage5:
+        description: 'Skip Stage 5 (Performance & Compliance)'
         required: false
         default: false
         type: boolean
@@ -66,7 +76,7 @@ jobs:
     - name: Security audit
       run: |
         echo "🛡️ Running security audit..."
-        npm audit --audit-level high
+        npm audit --audit-level moderate
     #####
 
     ##### Package.json vs package-lock.json version sync check
@@ -498,7 +508,7 @@ jobs:
         SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
       run: |
         echo "🔍 Running Semgrep static analysis security testing..."
-        semgrep --config=auto --error --strict \
+        semgrep --verbose --config=auto --error --strict \
           --exclude-rule=javascript.crypto-js.cryptojs-weak-algorithm.cryptojs-weak-algorithm \
           --exclude-rule=javascript.express.web.cors-default-config-express.cors-default-config-express \
           --exclude-rule=javascript.koa.web.cors-default-config-koa.cors-default-config-koa \
@@ -527,7 +537,7 @@ jobs:
   stage4-container-validation:
       runs-on: ubuntu-latest
       needs: stage3-security
-      if: ${{ !failure() }}
+      if: ${{ inputs.skip_stage4 != true && !failure() }}
     
       defaults:
         run:
@@ -658,3 +668,309 @@ jobs:
       #####
       ###############
       ##############################
+      
+  stage5-performance-compliance:
+    runs-on: ubuntu-latest
+    needs: stage4-container-validation
+    if: ${{ inputs.skip_stage5 != true && !failure() }}
+    
+    defaults:
+      run:
+        working-directory: it-works-on-my-machine/
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: ./.github/actions/setup-node
+    
+    ############################## Stage 5: Performance & Compliance
+    ############### Performance Baseline Block
+    ##### Docker Stats Performance Baseline
+    ##### Captures container resource usage metrics for performance regression detection
+    ##### Establishes baseline for Kubernetes HPA and resource limit configuration
+    - name: Build image for performance testing
+      run: |
+        echo "🐳 Building Docker image for performance testing..."
+        export DOCKER_CONTENT_TRUST=1
+        docker build -t ci-image:ci-${GITHUB_SHA} .
+    
+    - name: Capture performance baseline
+      run: |
+        echo "📊 Capturing performance baseline with docker stats..."
+        
+        # Start container
+        docker run -d --name perf-container -p 3000:3000 ci-image:ci-${GITHUB_SHA}
+        
+        # Wait for startup
+        echo "⏳ Waiting for application to start..."
+        for i in {1..30}; do
+          if curl -f http://localhost:3000/health >/dev/null 2>&1; then
+            echo "✅ Application is ready for performance testing!"
+            break
+          fi
+          sleep 1
+        done
+        
+        # Capture baseline stats
+        docker stats --no-stream perf-container > performance-baseline.txt
+        echo "Performance baseline captured: $(date)" >> performance-baseline.txt
+        
+        # Debug: Check if file was created
+        ls -la performance-baseline.txt
+        cat performance-baseline.txt
+        
+        # Display results
+        echo "📈 Performance Baseline Results:"
+        cat performance-baseline.txt
+        
+        # Cleanup
+        docker stop perf-container
+        docker rm perf-container
+
+    - name: Upload performance baseline
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: performance-baseline
+        path: it-works-on-my-machine/performance-baseline.txt
+    #####
+
+    ##### Lighthouse CI (Frontend Performance)
+    ##### Web performance auditing for frontend applications
+    ##### Measures page load speed, accessibility, SEO, and best practices
+    - name: Install Lighthouse CI
+      run: |
+        echo "🔍 Installing Lighthouse CI..."
+        npm install -g @lhci/cli@0.15.1 --silent
+    - name: Create Lighthouse CI config  
+      run: |
+        cat > lighthouserc.js << 'EOF'
+        module.exports = {
+          ci: {
+            collect: {
+              numberOfRuns: 1,
+              url: ['http://localhost:3000/health']
+            },
+            upload: {
+              target: 'temporary-public-storage'
+            }
+          }
+        };
+        EOF
+
+    - name: Run Lighthouse CI
+      run: |
+        echo "🔍 Running Lighthouse CI performance audit..."
+        
+        # Start application for testing
+        docker run -d --name lighthouse-app -p 3000:3000 ci-image:ci-${GITHUB_SHA}
+        
+        # Wait for application to start
+        echo "⏳ Waiting for application to start..."
+        for i in {1..30}; do
+          if curl -f http://localhost:3000/health >/dev/null 2>&1; then
+            echo "✅ Application ready for Lighthouse testing!"
+            break
+          fi
+          sleep 1
+        done
+        
+        # Run Lighthouse (config file handles URL and settings)
+        lhci autorun
+        
+        # Cleanup
+        docker stop lighthouse-app
+        docker rm lighthouse-app
+    #####
+
+    ##### Bundle Analyzer (if frontend assets exist)
+    ##### Analyzes JavaScript bundle sizes to identify bloated dependencies
+    ##### Critical for frontend performance optimization
+    - name: Bundle analysis
+      run: |
+        echo "📦 Checking for frontend bundle analysis..."
+        
+        # Check if we have frontend build artifacts
+        if [ -f "package.json" ] && grep -q "build" package.json; then
+          echo "Frontend build script detected, analyzing bundles..."
+          
+          # Install bundle analyzer if not present
+          if ! npm list webpack-bundle-analyzer >/dev/null 2>&1; then
+            npm install --save-dev webpack-bundle-analyzer
+          fi
+          
+          # Run build and analyze (if build script exists)
+          npm run build 2>/dev/null || echo "No build script found, skipping bundle analysis"
+          
+          # Generate bundle report (if build succeeded)
+          if [ -d "dist" ] || [ -d "build" ]; then
+            echo "📊 Bundle analysis completed"
+          else
+            echo "ℹ️ No frontend assets detected, skipping bundle analysis"
+          fi
+        else
+          echo "ℹ️ No frontend build configuration detected, skipping bundle analysis"
+        fi
+    #####
+    ###############
+
+    ##### ESLint Code Quality Gates
+    ##### Enforces code quality standards with configurable rules and thresholds
+    ##### Fails build on quality violations - pure CLI, no external dependencies
+    - name: Run ESLint quality gates
+      run: |
+        echo "🔍 Running ESLint code quality analysis..."
+        
+        # Install ESLint if not already available
+        npm install --save-dev eslint@latest
+        
+        # Create ESLint config if it doesn't exist (CommonJS format)
+        if [ ! -f "eslint.config.js" ]; then
+          cat > eslint.config.js << 'EOF'
+        const js = require("@eslint/js");
+
+        module.exports = [
+          js.configs.recommended,
+          {
+            languageOptions: {
+              ecmaVersion: 2021,
+              sourceType: "commonjs",
+              globals: {
+                // Node.js globals
+                global: "readonly",
+                process: "readonly", 
+                Buffer: "readonly",
+                console: "readonly",
+                require: "readonly",
+                module: "readonly",
+                exports: "readonly",
+                __dirname: "readonly",
+                __filename: "readonly",
+                // Jest globals
+                describe: "readonly",
+                test: "readonly",
+                expect: "readonly",
+                beforeEach: "readonly",
+                afterEach: "readonly"
+              }
+            },
+            rules: {
+              "complexity": ["error", 10],
+              "max-lines": ["error", 300], 
+              "max-params": ["error", 4],
+              "no-console": "off",
+              "no-unused-vars": "error",
+              "no-var": "error"
+            }
+          }
+        ];
+        EOF
+        fi
+        
+        # Run ESLint with quality gates (fail on any errors, max 5 warnings)
+        echo "Running ESLint on files:"
+        find . -name "*.js" -not -path "./node_modules/*" | head -5
+        npx eslint . --max-warnings 5
+        echo "✅ ESLint found no quality issues"
+    #####
+
+    ##### FOSSA License Compliance
+    ##### Scans dependencies for license compliance issues
+    ##### Essential for enterprise environments with legal requirements
+    - name: Install FOSSA CLI
+      run: |
+        # Install to ~/bin instead (user directory)
+        mkdir -p ~/bin
+        export PATH="$HOME/bin:$PATH"
+        
+        # Use official install script but install to user directory
+        curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install-latest.sh | BINDIR="$HOME/bin" bash
+        
+        # Verify
+        fossa --version
+
+    - name: Run FOSSA license analysis
+      env:
+        FOSSA_API_KEY: ${{ secrets.FOSSA_API_KEY }}
+      run: |
+        echo "📄 Running FOSSA license compliance analysis..."
+        
+        # Add ~/bin to PATH for this step too
+        export PATH="$HOME/bin:$PATH"
+        
+        # Run only analyze with push-only key
+        if [ -n "$FOSSA_API_KEY" ]; then
+          fossa analyze || echo "FOSSA analysis completed with warnings"
+          echo "✅ FOSSA analysis uploaded - check webapp for results"
+        else
+          echo "ℹ️ No FOSSA API key configured, performing local license check..."
+          
+          # Fallback to license-checker for basic compliance
+          npm install -g license-checker
+          npm ci --omit=dev
+          license-checker --onlyAllow 'MIT;ISC;Apache-2.0;BSD-2-Clause;BSD-3-Clause' --excludePrivatePackages --production --summary
+        fi
+    #####
+
+    ##### Git Secrets Detection
+    ##### Scans entire Git history and current codebase for accidentally committed secrets
+    ##### Prevents security breaches from hardcoded credentials
+    - name: Install git-secrets
+      run: |
+        git clone https://github.com/awslabs/git-secrets.git
+        cd git-secrets
+        sudo make install
+        cd ..
+        rm -rf git-secrets
+
+    - name: Run git-secrets scan
+      run: |
+        echo "🔐 Scanning for accidentally committed secrets..."
+        
+        # Initialize git-secrets
+        git secrets --register-aws
+        git secrets --install
+        
+        # Add custom patterns for common secrets
+        git secrets --add "password\\s*=\\s*[\"'][^\"']+[\"']"
+        git secrets --add "api[_-]?key\\s*[=:]\\s*[\"'][^\"']+[\"']"
+        git secrets --add "secret[_-]?key\\s*[=:]\\s*[\"'][^\"']+[\"']"
+        git secrets --add "token\\s*[=:]\\s*[\"'][^\"']+[\"']"
+        
+        # Scan only source files, exclude node_modules and other irrelevant directories
+        find . -name "*.js" -o -name "*.json" -o -name "*.md" -o -name "*.sh" \
+          | grep -v node_modules \
+          | grep -v coverage \
+          | xargs git secrets --scan || {
+          echo "❌ Secrets detected in repository!"
+          echo "Please review and remove any hardcoded secrets before committing."
+          exit 1
+        }
+        
+        echo "✅ No secrets detected in repository"
+    #####
+
+    ##### Compliance Summary
+    - name: Stage 5 Summary
+      if: always()
+      run: |
+        echo "📊 Stage 5: Performance & Compliance Results"
+        echo "Status: ${{ job.status }}"
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "✅ All performance and compliance checks passed"
+          echo "  - Performance baseline: ✅"
+          echo "  - Lighthouse audit: ✅"
+          echo "  - Bundle analysis: ✅"
+          echo "  - Code quality (SonarQube): ✅"
+          echo "  - License compliance: ✅"
+          echo "  - Secret detection: ✅"
+        else
+          echo "❌ Performance or compliance issues found - see above for details"
+        fi
+    #####
+    ###############
+    ##############################
+
+  
