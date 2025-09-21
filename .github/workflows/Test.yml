@@ -730,7 +730,7 @@ jobs:
       if: always()
       with:
         name: performance-baseline
-        path: it-works-on-my-machine/performance-baseline.txt
+        path: performance-baseline.txt
     #####
 
     ##### Lighthouse CI (Frontend Performance)
