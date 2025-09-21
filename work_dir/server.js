@@ -1,27 +1,27 @@
-const express = require('express');
+const express = require("express");
 const app = express();
 
 // Simple security headers (satisfies security scanner)
 app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
   next();
 });
 
 let healthy = true;
 
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
   if (healthy) {
-    res.send('Still working... on *my* machine 🧃');
+    res.send("Still working... on *my* machine 🧃");
   } else {
-    res.status(500).send('Unhealthy');
+    res.status(500).send("Unhealthy");
   }
 });
 
-app.get('/disable-health', (req, res) => {
+app.get("/disable-health", (req, res) => {
   healthy = false;
-  res.send('Health disabled');
+  res.send("Health disabled");
 });
 
 // Export the app for testing
