@@ -23,6 +23,11 @@ on:
         required: false
         default: true
         type: boolean
+      skip_stage3:
+        description: 'Skip Stage 3 (Security)'
+        required: false
+        default: false
+        type: boolean
 env:
   WORKFLOW_TIMEOUT: 15
 
