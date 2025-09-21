@@ -54,7 +54,7 @@ dockle
 
 WARN    - CIS-DI-0001: Create a user for the container
         * Last user should not be root
-        
+
 WARN    - DKL-DI-0006: Avoid latest tag
         * Avoid 'latest' tag
 INFO    - CIS-DI-0005: Enable Content trust for Docker
@@ -168,11 +168,11 @@ describe("Express App Health Endpoints", () => {
 });
 
 
+
 in server.js add/(and replace) to support he unit tests:
 // Export the app for testing
 module.exports = app;
 
-// Only start server if this file is run directly
 /* istanbul ignore next */
 if (require.main === module) {
   const port = process.env.PORT || 3000;
@@ -180,6 +180,7 @@ if (require.main === module) {
     console.log(`Server is running on http://localhost:${port}`);
   });
 }
+
 
 
 run npm install (again)
