@@ -374,7 +374,7 @@ jobs:
   stage3-security:
     runs-on: ubuntu-latest
     needs: stage2-testing
-    if: ${{ !failure() }}
+    if: ${{ inputs.skip_stage3 != true && !failure() }}
   
     defaults:
       run:
@@ -523,3 +523,139 @@ jobs:
     #####
     ###############
     ##############################
+
+  stage4-container-validation:
+      runs-on: ubuntu-latest
+      needs: stage3-security
+      if: ${{ !failure() }}
+    
+      defaults:
+        run:
+          working-directory: work_dir/
+    
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: ./.github/actions/setup-node
+
+      ############################## Stage 4: Container Validation
+      ############### Docker Build for Container Analysis
+      ##### Build image for container quality analysis
+      - name: Build image for container validation
+        run: |
+          echo "🐳 Building Docker image for container validation..."
+          export DOCKER_CONTENT_TRUST=1
+          docker build --no-cache -t ci-image:ci-${GITHUB_SHA} .
+      #####
+
+      ############### Dive Image Layer Analysis
+      ##### Install dive for Docker image analysis
+      ##### Analyzes Docker image layers for efficiency and bloat detection
+      - name: Install dive
+        run: |
+          VERSION=$(curl -s https://api.github.com/repos/wagoodman/dive/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_NUM=$(echo $VERSION | sed 's/v//')
+          curl -L -o dive.tar.gz https://github.com/wagoodman/dive/releases/download/${VERSION}/dive_${VERSION_NUM}_linux_amd64.tar.gz
+          tar zxf dive.tar.gz
+          sudo mv dive /usr/local/bin/
+          rm dive.tar.gz
+
+      - name: Run dive image layer analysis
+        run: |
+          echo "🔍 Running dive image layer analysis..."
+          dive ci-image:ci-${GITHUB_SHA} --ci --lowestEfficiency=0.90
+      #####
+
+      ############### Container Structure Testing
+      ##### Install container-structure-test for container validation
+      ##### Validates container structure and configuration
+      - name: Install container-structure-test
+        run: |
+          curl -LO https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
+          chmod +x container-structure-test-linux-amd64
+          sudo mv container-structure-test-linux-amd64 /usr/local/bin/container-structure-test
+
+      - name: Create container structure test config
+        run: |
+          echo "📋 Creating container structure test configuration..."
+          cat > container-structure-test.yaml << 'EOF'
+          schemaVersion: 2.0.0
+
+          fileExistenceTests:
+            - name: 'Check application files exist'
+              path: '/app/server.js'
+              shouldExist: true
+            - name: 'Check package.json exists'
+              path: '/app/package.json'
+              shouldExist: true
+            - name: 'Check node_modules exists'
+              path: '/app/node_modules'
+              shouldExist: true
+            - name: 'Check test script exists'
+              path: '/app/test.sh'
+              shouldExist: true
+
+          commandTests:
+            - name: 'Check Node.js is installed and accessible'
+              command: 'node'
+              args: ['--version']
+              expectedOutput: ['v18\..*']
+            - name: 'Check npm is installed'
+              command: 'npm'
+              args: ['--version']
+
+          metadataTest:
+            user: 'node'
+            exposedPorts: ['3000']
+            workdir: '/app'
+          EOF
+
+      - name: Run container structure tests
+        run: |
+          echo "🏗️ Running container structure tests..."
+          container-structure-test test --image ci-image:ci-${GITHUB_SHA} --config container-structure-test.yaml
+      #####
+
+      ############### Runtime Validation
+      ##### Verify container actually runs and has expected runtime environment
+      - name: Run runtime validation
+        run: |
+          echo "⚡ Running container runtime validation..."
+          echo "Testing Node.js runtime..."
+          docker run --rm ci-image:ci-${GITHUB_SHA} node --version
+          
+          echo "Testing npm availability..."
+          docker run --rm ci-image:ci-${GITHUB_SHA} npm --version
+          
+          echo "Testing application entry point..."
+          timeout 10s docker run --rm -p 3001:3000 ci-image:ci-${GITHUB_SHA} &
+          sleep 5
+          if curl -f http://localhost:3001/health >/dev/null 2>&1; then
+            echo "✅ Application runtime validation successful"
+          else
+            echo "❌ Application runtime validation failed"
+            exit 1
+          fi
+      #####
+
+      ##### Container validation summary
+      - name: Stage 4 Summary
+        if: always()
+        run: |
+          echo "📊 Stage 4: Container Validation Results"
+          echo "Status: ${{ job.status }}"
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ All container validation checks passed"
+            echo "  - Image layer efficiency: ✅"
+            echo "  - Container structure: ✅"
+            echo "  - Runtime environment: ✅"
+            echo "  - Application startup: ✅"
+          else
+            echo "❌ Container validation issues found - see above for details"
+          fi
+      #####
+      ###############
+      ##############################
+      
