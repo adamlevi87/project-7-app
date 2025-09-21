@@ -1,5 +1,5 @@
 const express = require("express");
-const csrf = require('csurf');
+const csrf = require("csurf");
 const app = express();
 app.use(csrf());
 
