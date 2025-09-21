@@ -717,6 +717,10 @@ jobs:
         docker stats --no-stream perf-container > performance-baseline.txt
         echo "Performance baseline captured: $(date)" >> performance-baseline.txt
         
+        # Debug: Check if file was created
+        ls -la performance-baseline.txt
+        cat performance-baseline.txt
+        
         # Display results
         echo "📈 Performance Baseline Results:"
         cat performance-baseline.txt
@@ -738,7 +742,7 @@ jobs:
     ##### Measures page load speed, accessibility, SEO, and best practices
     - name: Install Lighthouse CI
       run: |
-        est echo "🔍 Installing Lighthouse CI..."
+        echo "🔍 Installing Lighthouse CI..."
         npm install -g @lhci/cli@0.15.1 --silent
 
     - name: Run Lighthouse CI
