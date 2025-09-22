@@ -7,6 +7,9 @@
     "test:unit": "jest --coverage --detectOpenHandles --coverageThreshold='{\"global\":{\"lines\":90}}'",
     "test:integration": "./test.sh"
   },
+  "overrides": {
+    "cookie": "^0.7.0"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
