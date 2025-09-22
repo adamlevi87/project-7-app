@@ -1,6 +1,5 @@
 const express = require("express");
 const session = require("express-session");
-// nosemgrep: javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage
 const csrf = require("@dr.pogodin/csurf");
 const app = express();
 

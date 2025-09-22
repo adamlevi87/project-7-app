@@ -512,6 +512,7 @@ jobs:
           --exclude-rule=javascript.crypto-js.cryptojs-weak-algorithm.cryptojs-weak-algorithm \
           --exclude-rule=javascript.express.web.cors-default-config-express.cors-default-config-express \
           --exclude-rule=javascript.koa.web.cors-default-config-koa.cors-default-config-koa \
+          --exclude-rule=javascript.express.security.audit.express-check-csurf-middleware-usage.express-check-csurf-middleware-usage \
           .
     #####
 
