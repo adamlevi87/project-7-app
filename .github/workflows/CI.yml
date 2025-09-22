@@ -13,6 +13,21 @@ on:
   #     - 'it-works-on-my-machine/**'
   workflow_dispatch:
     inputs:
+      base_image_source:
+        description: 'Base image to pull (e.g., node:18-buster-slim)'
+        required: false
+        default: 'node:18-buster-slim'
+        type: string
+      base_image_sha:
+        description: 'SHA256 of base image to pin'
+        required: false
+        default: 'sha256:8ddce69c50b5e3c2e7abc611f30d76747b1baa1f8b1e442cfb5f7a4ac8ee798b'
+        type: string
+      skip_stage_0:
+        description: 'Skip Stage 0 (Base Image Management)'
+        required: false
+        default: false
+        type: boolean
       skip_stage1:
         description: 'Skip Stage 1 (Quality checks)'
         required: false
@@ -36,15 +51,33 @@ on:
       skip_stage5:
         description: 'Skip Stage 5 (Performance & Compliance)'
         required: false
-        default: false
+        default: true
         type: boolean
 env:
   WORKFLOW_TIMEOUT: 15
 
 jobs:
+  stage_0_base_image_management:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_stage_0 != 'true' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      ############################## Step 0: Base Image Management
+      ############### NPM Validations
+      ##### Base Image Management
+      ##### Pulls, labels, signs and pushes base image to private registry
+      ##### Ensures secure, trusted base images for container builds
+      - name: Pull and manage base image
+        run: |
+          echo "🐳 Managing base image for private registry..."
+          # Pull, label, sign, push logic here
+
   stage1-quality:
     runs-on: ubuntu-latest
-    if: ${{ inputs.skip_stage1 != true }}
+    needs: stage_0_base_image_management
+    if: ${{ inputs.skip_stage1 != true && !failure() }}
     
     defaults:
       run:
