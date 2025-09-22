@@ -223,6 +223,7 @@ jobs:
           
           # Create trust directory structure
           mkdir -p ~/.docker/trust/private
+          mkdir -p ~/.docker/trust/tuf
           
           # Setup root key with correct permissions
           echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
@@ -238,6 +239,15 @@ jobs:
           
           # Verify files were created with correct permissions
           ls -la ~/.docker/trust/private/
+          
+          # Set up trust environment variables
+          export DOCKER_CONTENT_TRUST=1
+          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
+          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
+          
+          # Initialize the trust metadata by pulling the existing trust data
+          echo "🔄 Initializing trust metadata..."
+          docker trust inspect docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} || echo "No existing trust data found (expected for new repos)"
           
           echo "✅ Docker Content Trust configured with proper key permissions"
 
