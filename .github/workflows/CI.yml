@@ -13,10 +13,10 @@ on:
   #     - 'it-works-on-my-machine/**'
   workflow_dispatch:
     inputs:
-      base_image_source:
-        description: 'Base image to pull (e.g., node:18-buster-slim)'
+      base_image_with_digest:
+        description: 'Base image with multi-arch manifest digest'
         required: false
-        default: 'node:18-buster-slim'
+        default: 'node:18-buster-slim@sha256:8ddce69c50b5e3c2e7abc611f30d76747b1baa1f8b1e442cfb5f7a4ac8ee798b'
         type: string
       base_image_manifest:
         description: 'SHA256 of base image to pin'
@@ -67,26 +67,27 @@ env:
 jobs:
   stage_0_base_image_management:
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.skip_stage_0 != 'true' }}
+    if: ${{ inputs.skip_stage_0 != true }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-  ############################## Step 0: Base Image Management
-      ############### Base Image Management
+      ##### Base Image Management
       ##### Pulls, labels, signs and pushes base image to private registry
       ##### Ensures secure, trusted base images for container builds
-      
-      ##### Labels control (edit as desired)
       - name: Define label schema
         id: define_labels
         run: |
           echo "🏷️ Defining label schema..."
           
-          # Static labels (value must match exactly) - use delimited format instead of JSON
+          # Extract base image name and digest from input
+          BASE_IMAGE_NAME=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f1)
+          BASE_IMAGE_DIGEST=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f2)
+          
+          # Static labels (value must match exactly)
           STATIC_LABELS=(
-            "source.image:${{ inputs.base_image_source }}"
-            "source.manifest:${{ inputs.base_image_manifest }}" 
+            "source.image:${BASE_IMAGE_NAME}"
+            "source.multiarch_manifest:${BASE_IMAGE_DIGEST}" 
             "build.source:github-actions"
             "build.workflow:${{ github.workflow }}"
           )
@@ -97,29 +98,27 @@ jobs:
             "build.run_id"
           )
           
-          # Export as pipe-delimited strings (safer than JSON)
+          # Export as pipe-delimited strings
           STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
           DYNAMIC_LABELS_STRING=$(printf '%s|' "${DYNAMIC_LABELS[@]}")
           
           echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
           echo "dynamic_labels=${DYNAMIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
+          echo "base_image_name=${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
+          echo "base_image_digest=${BASE_IMAGE_DIGEST}" >> $GITHUB_OUTPUT
           
           echo "✅ Label schema defined"
-      #####
 
-      ##### Login to priate Dockerhub
       - name: Login to Docker Hub
         run: |
           echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
-      ######
 
-      ###### Checking private registry if image exists using all relevant conditions
       - name: Check private registry first
         id: check_private
         run: |
           echo "🔍 Checking if image already exists in private registry with correct labels..."
           
-          # Parse the exported label arrays
+          # Parse the exported label strings
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
           IFS='|' read -ra DYNAMIC_LABELS <<< "${{ steps.define_labels.outputs.dynamic_labels }}"
           
@@ -164,70 +163,55 @@ jobs:
           fi
           
           echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
-      #####
 
-      ##### Checking the Desired image on public Dockerhub
-      - name: Check public Docker Hub availability
-        id: check_public
+      - name: Extract linux/amd64 manifest
+        id: extract_manifest
         if: steps.check_private.outputs.needs_push == 'true'
         run: |
-          echo "🔍 Checking if base image manifest digest is available on Docker Hub..."
+          echo "🔍 Extracting linux/amd64 manifest from multi-arch image..."
           
-          # Get manifest and check if it exists
-          MANIFEST_OUTPUT=$(docker manifest inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }} 2>/dev/null)
+          # Extract linux/amd64 specific manifest from multi-arch manifest
+          LINUX_AMD64_MANIFEST=$(docker buildx imagetools inspect ${{ inputs.base_image_with_digest }} --raw | jq -r '
+            .manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest
+          ')
           
-          if [ $? -eq 0 ]; then
-            echo "✅ Base image manifest digest found on Docker Hub"
-            
-            # Verify the manifest digest matches what we expect
-            echo "🔍 Verifying manifest digest integrity..."
-            ACTUAL_MANIFEST=$(echo "$MANIFEST_OUTPUT" | jq -r '.Descriptor.digest // .digest')
-            echo "Expected manifest: ${{ inputs.base_image_manifest }}"
-            echo "Actual manifest: $ACTUAL_MANIFEST"
-            
-            # Compare manifest digests
-            if [[ "$ACTUAL_MANIFEST" != "${{ inputs.base_image_manifest }}" ]]; then
-              echo "❌ Manifest digest verification failed! Supply chain compromise possible."
-              exit 1
-            fi
-            echo "✅ Manifest digest verification passed - image integrity confirmed"
-            
-            echo "image_available=true" >> $GITHUB_OUTPUT
+          if [[ -n "$LINUX_AMD64_MANIFEST" && "$LINUX_AMD64_MANIFEST" != "null" ]]; then
+            echo "✅ Linux/amd64 manifest found: $LINUX_AMD64_MANIFEST"
+            echo "linux_amd64_manifest=$LINUX_AMD64_MANIFEST" >> $GITHUB_OUTPUT
+            echo "manifest_available=true" >> $GITHUB_OUTPUT
           else
-            echo "❌ Base image manifest digest no longer available on Docker Hub"
-            echo "Cannot proceed without source image"
+            echo "❌ Failed to extract linux/amd64 manifest from multi-arch image"
             exit 1
           fi
-      #####
 
-      ##### Updating Private Registry with the new image
       - name: Pull and push to private registry
-        if: steps.check_public.outputs.image_available == 'true'
+        if: steps.extract_manifest.outputs.manifest_available == 'true'
         run: |
           echo "🐳 Pulling and pushing base image to private registry..."
           
           # Enable Docker Content Trust
           export DOCKER_CONTENT_TRUST=1
           
-          # Pull the specific manifest digest
-          echo "📥 Pulling base image..."
-          docker pull ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }}
+          # Pull using the extracted linux/amd64 manifest
+          echo "📥 Pulling base image with linux/amd64 manifest..."
+          docker pull ${{ steps.define_labels.outputs.base_image_name }}@${{ steps.extract_manifest.outputs.linux_amd64_manifest }}
           
           # Tag for private registry
           echo "🏷️ Tagging for private registry..."
-          docker tag ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }} \
+          docker tag ${{ steps.define_labels.outputs.base_image_name }}@${{ steps.extract_manifest.outputs.linux_amd64_manifest }} \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           
           # Add metadata via docker buildx imagetools
           echo "📋 Adding build metadata and pushing..."
           docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
-            --annotation "source.image=${{ inputs.base_image_source }}" \
-            --annotation "source.manifest=${{ inputs.base_image_manifest }}" \
+            --annotation "source.image=${{ steps.define_labels.outputs.base_image_name }}" \
+            --annotation "source.multiarch_manifest=${{ steps.define_labels.outputs.base_image_digest }}" \
+            --annotation "source.linux_amd64_manifest=${{ steps.extract_manifest.outputs.linux_amd64_manifest }}" \
             --annotation "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --annotation "build.source=github-actions" \
             --annotation "build.workflow=${{ github.workflow }}" \
             --annotation "build.run_id=${{ github.run_id }}" \
-            ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }}
+            ${{ steps.define_labels.outputs.base_image_name }}@${{ steps.extract_manifest.outputs.linux_amd64_manifest }}
           
           echo "✅ Base image management completed with full provenance tracking"
     #####
