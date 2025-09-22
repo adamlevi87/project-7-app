@@ -22,6 +22,7 @@ on:
         description: 'SHA256 of base image to pin'
         required: false
         default: 'sha256:6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3'
+        # this is a manifest ID (a specific OS/Arch on top of the specific node version/ specific distro & version)
         # https://hub.docker.com/layers/library/node/18-buster-slim/images/sha256-6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3
         # Image Details: linux/amd64, buster-slim v10.13, node v18.20.3
         type: string
@@ -163,9 +164,10 @@ jobs:
             
             # Verify the SHA matches what we expect
             echo "🔍 Verifying image integrity..."
-            ACTUAL_SHA=$(docker inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} --format='{{.Id}}')
-            echo "Expected SHA: ${{ inputs.base_image_sha }}"
-            echo "Actual SHA: $ACTUAL_SHA"
+            #ACTUAL_SHA=$(docker inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} --format='{{.Id}}')
+            ACTUAL_MANIFEST=$(docker inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} --format='{{index .RepoDigests 0}}')
+            echo "Expected: ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }}"
+            echo "Actual: $ACTUAL_MANIFEST"
             
             # Compare SHAs and fail if they don't match
             if [[ "$ACTUAL_SHA" != "sha256:${{ inputs.base_image_sha }}" && "$ACTUAL_SHA" != "${{ inputs.base_image_sha }}" ]]; then
