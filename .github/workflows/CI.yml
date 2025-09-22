@@ -202,14 +202,38 @@ jobs:
           fi
           
           echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
+          
+      - name: Setup Docker Content Trust
+        run: |
+          echo "🔐 Setting up Docker Content Trust..."
+          
+          # Create trust directory structure
+          mkdir -p ~/.docker/trust/private
+          mkdir -p ~/.docker/trust/private/root_keys
+          
+          # Setup root key
+          echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+          
+          # Setup repository key  
+          echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
+          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
+          
+          # Setup signer key
+          echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
+          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
+          
+          echo "✅ Docker Content Trust configured"
 
       - name: Pull and push to private registry
         if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
         run: |
           echo "🐳 Pulling and pushing base image to private registry..."
           
-          # Enable Docker Content Trust
+          # Enable Docker Content Trust with pre-configured keys
           export DOCKER_CONTENT_TRUST=1
+          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
+          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
           
           # Parse the static labels to extract values for docker commands
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
