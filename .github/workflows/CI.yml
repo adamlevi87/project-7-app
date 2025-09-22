@@ -72,7 +72,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      ############################## Step 0: Base Image Management
+  ############################## Step 0: Base Image Management
       ############### Base Image Management
       ##### Pulls, labels, signs and pushes base image to private registry
       ##### Ensures secure, trusted base images for container builds
@@ -227,9 +227,9 @@ jobs:
             ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }}
           
           echo "✅ Base image management completed with full provenance tracking"
-        #####
-        ###############
-        ##############################
+    #####
+    ###############
+  ##############################
         
   stage1-quality:
     runs-on: ubuntu-latest
@@ -247,7 +247,7 @@ jobs:
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
     
-    ############################## Step 1: Code Quality & Standards Validation
+  ############################## Step 1: Code Quality & Standards Validation
     ############### NPM Validations
     ##### lockfile
     ##### Installs tool to validate package-lock.json security and registry sources.
@@ -472,7 +472,7 @@ jobs:
         fi
     #####
     ###############
-    ##############################
+  ##############################
 
   stage2-testing:
     runs-on: ubuntu-latest
@@ -490,7 +490,7 @@ jobs:
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
     
-    ############################## Stage 2: Testing Suite
+  ############################## Stage 2: Testing Suite
     ############### Unit Tests Block
     ##### NPM clean install include devDependencies (support testing)
     - name: Install dependencies
@@ -569,7 +569,7 @@ jobs:
         docker rmi test-image:ci-${GITHUB_SHA} || true
     #####
     ###############
-    ##############################
+  ##############################
     
   stage3-security:
     runs-on: ubuntu-latest
@@ -587,7 +587,7 @@ jobs:
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
 
-    ############################## Step 3: Security Scanning
+  ############################## Step 3: Security Scanning
     ############### Security Scanning Block
     ##### Install dependencies for scanning
     - name: Install dependencies
@@ -723,7 +723,7 @@ jobs:
         fi
     #####
     ###############
-    ##############################
+  ##############################
 
   stage4-container-validation:
       runs-on: ubuntu-latest
@@ -741,7 +741,7 @@ jobs:
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
 
-      ############################## Stage 4: Container Validation
+  ############################## Stage 4: Container Validation
       ############### Docker Build for Container Analysis
       ##### Build image for container quality analysis
       - name: Build image for container validation
@@ -858,7 +858,7 @@ jobs:
           fi
       #####
       ###############
-      ##############################
+  ##############################
       
   stage5-performance-compliance:
     runs-on: ubuntu-latest
@@ -876,7 +876,7 @@ jobs:
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
     
-    ############################## Stage 5: Performance & Compliance
+  ############################## Stage 5: Performance & Compliance
     ############### Performance Baseline Block
     ##### Docker Stats Performance Baseline
     ##### Captures container resource usage metrics for performance regression detection
@@ -1162,6 +1162,6 @@ jobs:
         fi
     #####
     ###############
-    ##############################
+  ##############################
 
   
