@@ -163,7 +163,14 @@ jobs:
           
           # Check if already in private registry with correct labels
           NEEDS_PUSH=true
-          if docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1; then
+          
+          # Use set +e to prevent script exit on docker command failure
+          set +e
+          docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
+          MANIFEST_EXISTS=$?
+          set -e
+          
+          if [ $MANIFEST_EXISTS -eq 0 ]; then
             echo "🔍 Image found in private registry, checking labels..."
             LABELS_MATCH=true
             
@@ -171,9 +178,13 @@ jobs:
             for label_pair in "${STATIC_LABELS[@]}"; do
               label_key=$(echo $label_pair | cut -d':' -f1)
               expected_value=$(echo $label_pair | cut -d':' -f2-)
-              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
               
-              if [[ "$actual_value" != "$expected_value" ]]; then
+              set +e
+              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
+              INSPECT_RESULT=$?
+              set -e
+              
+              if [ $INSPECT_RESULT -ne 0 ] || [[ "$actual_value" != "$expected_value" ]]; then
                 echo "❌ Static label mismatch: $label_key expected '$expected_value', got '$actual_value'"
                 LABELS_MATCH=false
                 break
@@ -183,9 +194,12 @@ jobs:
             # Check dynamic labels (must exist, value irrelevant)
             if [ "$LABELS_MATCH" = true ]; then
               for label_key in "${DYNAMIC_LABELS[@]}"; do
-                actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
+                set +e
+                actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
+                INSPECT_RESULT=$?
+                set -e
                 
-                if [[ -z "$actual_value" ]]; then
+                if [ $INSPECT_RESULT -ne 0 ] || [[ -z "$actual_value" ]]; then
                   echo "❌ Dynamic label missing: $label_key"
                   LABELS_MATCH=false
                   break
