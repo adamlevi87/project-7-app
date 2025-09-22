@@ -217,99 +217,13 @@ jobs:
           
           echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
 
-      - name: Setup Docker Content Trust
-        run: |
-          echo "🔐 Setting up Docker Content Trust..."
-          
-          # Create trust directory structure
-          mkdir -p ~/.docker/trust/private
-          mkdir -p ~/.docker/trust/tuf
-          
-          # Debug: Check if secrets are populated
-          echo "Debug: Checking secret lengths..."
-          echo "Root key length: ${#DOCKER_TRUST_ROOT_KEY}"
-          echo "Repo key length: ${#DOCKER_TRUST_REPO_KEY}" 
-          echo "Signer key length: ${#DOCKER_TRUST_SIGNER_KEY}"
-          
-          # Setup root key with correct permissions and validation (NO base64 decode)
-          echo "Setting up root key..."
-          echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key ]; then
-            echo "❌ Root key file is empty"
-            exit 1
-          fi
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          
-          # Setup repository key with correct permissions and validation (NO base64 decode)
-          echo "Setting up repository key..."
-          echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
-          if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key ]; then
-            echo "❌ Repository key file is empty"
-            exit 1
-          fi
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
-          
-          # Setup signer key with correct permissions and validation (NO base64 decode)
-          echo "Setting up signer key..."
-          echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
-          if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key ]; then
-            echo "❌ Signer key file is empty"
-            exit 1
-          fi
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
-          
-          # Verify files were created with correct permissions and show first few chars
-          echo "Verify key files:"
-          ls -la ~/.docker/trust/private/
-          
-          echo "Check key file formats (first line of each):"
-          head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key  
-          head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
-          
-          # Set environment variables for Docker Content Trust
-          export DOCKER_CONTENT_TRUST=1
-          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
-          
-          echo "🔄 Initializing trust metadata..."
-          # Try to pull existing trust metadata to populate the local cache
-          set +e
-          docker trust inspect docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
-          TRUST_INSPECT_RESULT=$?
-          set -e
-          
-          if [ $TRUST_INSPECT_RESULT -eq 0 ]; then
-            echo "✅ Trust metadata found and loaded"
-            echo "📋 Current trust configuration:"
-            docker trust inspect docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --pretty
-            
-            echo "🔍 Available signing keys in our setup:"
-            echo "Root key ID: ${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}"
-            echo "Repo key ID: ${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}"
-            echo "Signer key ID: ${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}"
-            
-            echo "📁 Local key files:"
-            ls -la ~/.docker/trust/private/
-          else
-            echo "ℹ️ No existing trust metadata found (expected for new repositories)"
-          fi
-          
-          echo "✅ Docker Content Trust configured with proper key permissions and metadata"
-        env:
-          DOCKER_TRUST_ROOT_KEY: ${{ secrets.DOCKER_TRUST_ROOT_KEY }}
-          DOCKER_TRUST_REPO_KEY: ${{ secrets.DOCKER_TRUST_REPO_KEY }}
-          DOCKER_TRUST_SIGNER_KEY: ${{ secrets.DOCKER_TRUST_SIGNER_KEY }}
-
       - name: Pull and push signed image to private registry
         if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
         run: |
-          echo "🐳 Pulling and pushing base image to private registry with Content Trust..."
+          echo "🐳 Pulling and pushing base image to private registry..."
           
-          # Enable Docker Content Trust with pre-configured keys
-          export DOCKER_CONTENT_TRUST=1
-          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
+          # Content Trust disabled - we achieve security through manifest verification
+          export DOCKER_CONTENT_TRUST=0
           
           # Parse the static labels to extract values for docker commands
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
