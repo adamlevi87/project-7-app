@@ -18,7 +18,7 @@ on:
         required: false
         default: 'node:18-buster-slim'
         type: string
-      base_image_sha:
+      base_image_manifest:
         description: 'SHA256 of base image to pin'
         required: false
         default: 'sha256:6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3'
@@ -73,50 +73,57 @@ jobs:
         uses: actions/checkout@v4
       
       ############################## Step 0: Base Image Management
-      ############### NPM Validations
-      ##### Base Image Management
+      ############### Base Image Management
       ##### Pulls, labels, signs and pushes base image to private registry
       ##### Ensures secure, trusted base images for container builds
-      - name: Check image availability (public dockerhub)
-        id: check_image
+      
+      ##### Labels control (edit as desired)
+      - name: Define label schema
+        id: define_labels
         run: |
-          echo "🔍 Checking if base image SHA is available..."
-          if docker manifest inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} > /dev/null 2>&1; then
-            echo "✅ Base image SHA found on Docker Hub"
-            echo "image_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Base image SHA no longer available on Docker Hub"
-            echo "This is expected - using existing private registry image"
-            echo "image_available=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Login to Docker Hub
-        if: steps.check_image.outputs.image_available == 'true'
-        run: |
-          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
-    
-      - name: Pull and manage base image
-        if: steps.check_image.outputs.image_available == 'true'
-        run: |
-          echo "🐳 Managing base image for private registry..."
+          echo "🏷️ Defining label schema..."
           
-          # Define expected labels schema
+          # Static labels (value must match exactly)
           STATIC_LABELS=(
             "source.image:${{ inputs.base_image_source }}"
-            "source.sha:${{ inputs.base_image_sha }}" 
+            "source.manifest:${{ inputs.base_image_manifest }}" 
             "build.source:github-actions"
             "build.workflow:${{ github.workflow }}"
           )
           
+          # Dynamic labels (must exist, value doesn't matter)
           DYNAMIC_LABELS=(
-            "build.timestamp"  # Must exist, value doesn't matter
-            "build.run_id"     # Must exist, value doesn't matter  
+            "build.timestamp"
+            "build.run_id"
           )
+          
+          # Export as JSON arrays
+          echo "static_labels=$(printf '%s\n' "${STATIC_LABELS[@]}" | jq -R . | jq -s .)" >> $GITHUB_OUTPUT
+          echo "dynamic_labels=$(printf '%s\n' "${DYNAMIC_LABELS[@]}" | jq -R . | jq -s .)" >> $GITHUB_OUTPUT
+          
+          echo "✅ Label schema defined"
+      #####
+
+      ##### Login to priate Dockerhub
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+      ######
+
+      ###### Checking private registry if image exists using all relevant conditions
+      - name: Check private registry first
+        id: check_private
+        run: |
+          echo "🔍 Checking if image already exists in private registry with correct labels..."
+          
+          # Parse the exported label arrays
+          readarray -t STATIC_LABELS < <(echo '${{ steps.define_labels.outputs.static_labels }}' | jq -r '.[]')
+          readarray -t DYNAMIC_LABELS < <(echo '${{ steps.define_labels.outputs.dynamic_labels }}' | jq -r '.[]')
           
           # Check if already in private registry with correct labels
           NEEDS_PUSH=true
           if docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1; then
-            echo "🔍 Checking existing image labels..."
+            echo "🔍 Image found in private registry, checking labels..."
             LABELS_MATCH=true
             
             # Check static labels (value must match)
@@ -146,58 +153,81 @@ jobs:
             fi
             
             if [ "$LABELS_MATCH" = true ]; then
-              echo "✅ All labels match - skipping push"
+              echo "✅ All labels match - no push needed"
               NEEDS_PUSH=false
             fi
           else
-            echo "ℹ️ Image not found in private registry - will push"
+            echo "ℹ️ Image not found in private registry - will need to push"
           fi
           
-          # Only proceed with pull/tag/push if needed
-          if [ "$NEEDS_PUSH" = true ]; then
-            # Enable Docker Content Trust
-            export DOCKER_CONTENT_TRUST=1
+          echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
+      #####
+
+      ##### Checking the Desired image on public Dockerhub
+      - name: Check public Docker Hub availability
+        id: check_public
+        if: steps.check_private.outputs.needs_push == 'true'
+        run: |
+          echo "🔍 Checking if base image manifest digest is available on Docker Hub..."
+          
+          # Get manifest and check if it exists
+          MANIFEST_OUTPUT=$(docker manifest inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }} 2>/dev/null)
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ Base image manifest digest found on Docker Hub"
             
-            # Pull the specific SHA
-            echo "📥 Pulling base image with SHA verification..."
-            docker pull ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }}
+            # Verify the manifest digest matches what we expect
+            echo "🔍 Verifying manifest digest integrity..."
+            ACTUAL_MANIFEST=$(echo "$MANIFEST_OUTPUT" | jq -r '.Descriptor.digest // .digest')
+            echo "Expected manifest: ${{ inputs.base_image_manifest }}"
+            echo "Actual manifest: $ACTUAL_MANIFEST"
             
-            # Verify the SHA matches what we expect
-            echo "🔍 Verifying image integrity..."
-            #ACTUAL_SHA=$(docker inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} --format='{{.Id}}')
-            ACTUAL_MANIFEST=$(docker inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} --format='{{index .RepoDigests 0}}')
-            echo "Expected: ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }}"
-            echo "Actual: $ACTUAL_MANIFEST"
-            
-            # Compare SHAs and fail if they don't match
-            if [[ "$ACTUAL_SHA" != "sha256:${{ inputs.base_image_sha }}" && "$ACTUAL_SHA" != "${{ inputs.base_image_sha }}" ]]; then
-              echo "❌ SHA verification failed! Image integrity compromised."
-              echo "This could indicate a supply chain attack or corrupted image."
+            # Compare manifest digests
+            if [[ "$ACTUAL_MANIFEST" != "${{ inputs.base_image_manifest }}" ]]; then
+              echo "❌ Manifest digest verification failed! Supply chain compromise possible."
               exit 1
             fi
-            echo "✅ SHA verification passed - image integrity confirmed"
+            echo "✅ Manifest digest verification passed - image integrity confirmed"
             
-            # Tag with provenance labels for traceability
-            echo "🏷️ Adding provenance metadata..."
-            docker tag ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} \
-              ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-            
-            # Add metadata via docker buildx imagetools
-            echo "📋 Adding build metadata..."
-            docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
-              --annotation "source.image=${{ inputs.base_image_source }}" \
-              --annotation "source.sha=${{ inputs.base_image_sha }}" \
-              --annotation "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-              --annotation "build.source=github-actions" \
-              --annotation "build.workflow=${{ github.workflow }}" \
-              --annotation "build.run_id=${{ github.run_id }}" \
-              ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }}
-            
-            echo "✅ Base image management completed with full provenance tracking"
+            echo "image_available=true" >> $GITHUB_OUTPUT
           else
-            echo "ℹ️ Skipping pull/tag/push - existing image is up to date"
+            echo "❌ Base image manifest digest no longer available on Docker Hub"
+            echo "Cannot proceed without source image"
+            exit 1
           fi
+      #####
 
+      ##### Updating Private Registry with the new image
+      - name: Pull and push to private registry
+        if: steps.check_public.outputs.image_available == 'true'
+        run: |
+          echo "🐳 Pulling and pushing base image to private registry..."
+          
+          # Enable Docker Content Trust
+          export DOCKER_CONTENT_TRUST=1
+          
+          # Pull the specific manifest digest
+          echo "📥 Pulling base image..."
+          docker pull ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }}
+          
+          # Tag for private registry
+          echo "🏷️ Tagging for private registry..."
+          docker tag ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }} \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          
+          # Add metadata via docker buildx imagetools
+          echo "📋 Adding build metadata and pushing..."
+          docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
+            --annotation "source.image=${{ inputs.base_image_source }}" \
+            --annotation "source.manifest=${{ inputs.base_image_manifest }}" \
+            --annotation "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --annotation "build.source=github-actions" \
+            --annotation "build.workflow=${{ github.workflow }}" \
+            --annotation "build.run_id=${{ github.run_id }}" \
+            ${{ inputs.base_image_source }}@${{ inputs.base_image_manifest }}
+          
+          echo "✅ Base image management completed with full provenance tracking"
+        #####
   stage1-quality:
     runs-on: ubuntu-latest
     needs: stage_0_base_image_management
