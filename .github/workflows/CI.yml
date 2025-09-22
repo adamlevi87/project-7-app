@@ -65,155 +65,184 @@ env:
   WORKFLOW_TIMEOUT: 15
 
 jobs:
-  stage_0_base_image_management:
-    runs-on: ubuntu-latest
-    if: ${{ inputs.skip_stage_0 != true }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      ##### Base Image Management
-      ##### Pulls, labels, signs and pushes base image to private registry
-      ##### Ensures secure, trusted base images for container builds
-      - name: Define label schema
-        id: define_labels
-        run: |
-          echo "🏷️ Defining label schema..."
-          
-          # Extract base image name and digest from input
-          BASE_IMAGE_NAME=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f1)
-          BASE_IMAGE_DIGEST=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f2)
-          
-          # Static labels (value must match exactly)
-          STATIC_LABELS=(
-            "source.image:${BASE_IMAGE_NAME}"
-            "source.multiarch_manifest:${BASE_IMAGE_DIGEST}" 
-            "build.source:github-actions"
-            "build.workflow:${{ github.workflow }}"
-          )
-          
-          # Dynamic labels (must exist, value doesn't matter)
-          DYNAMIC_LABELS=(
-            "build.timestamp"
-            "build.run_id"
-          )
-          
-          # Export as pipe-delimited strings
-          STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
-          DYNAMIC_LABELS_STRING=$(printf '%s|' "${DYNAMIC_LABELS[@]}")
-          
-          echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
-          echo "dynamic_labels=${DYNAMIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
-          echo "base_image_name=${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
-          echo "base_image_digest=${BASE_IMAGE_DIGEST}" >> $GITHUB_OUTPUT
-          
-          echo "✅ Label schema defined"
-
-      - name: Login to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
-
-      - name: Check private registry first
-        id: check_private
-        run: |
-          echo "🔍 Checking if image already exists in private registry with correct labels..."
-          
-          # Parse the exported label strings
-          IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
-          IFS='|' read -ra DYNAMIC_LABELS <<< "${{ steps.define_labels.outputs.dynamic_labels }}"
-          
-          # Check if already in private registry with correct labels
-          NEEDS_PUSH=true
-          if docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1; then
-            echo "🔍 Image found in private registry, checking labels..."
-            LABELS_MATCH=true
+    stage_0_base_image_management:
+      runs-on: ubuntu-latest
+      if: ${{ inputs.skip_stage_0 != true }}
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        
+        ##### Base Image Management
+        ##### Pulls, labels, signs and pushes base image to private registry
+        ##### Ensures secure, trusted base images for container builds
+        - name: Parse base image inputs
+          id: parse_inputs
+          run: |
+            echo "🔍 Parsing base image inputs..."
             
-            # Check static labels (value must match)
-            for label_pair in "${STATIC_LABELS[@]}"; do
-              label_key=$(echo $label_pair | cut -d':' -f1)
-              expected_value=$(echo $label_pair | cut -d':' -f2-)
-              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
+            # Extract base image name and digest from input
+            BASE_IMAGE_NAME=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f1)
+            BASE_IMAGE_MULTIARCH_DIGEST=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f2)
+            
+            echo "base_image_name=${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
+            echo "base_image_multiarch_digest=${BASE_IMAGE_MULTIARCH_DIGEST}" >> $GITHUB_OUTPUT
+            
+            echo "✅ Base image inputs parsed"
+            echo "Image name: ${BASE_IMAGE_NAME}"
+            echo "Multi-arch digest: ${BASE_IMAGE_MULTIARCH_DIGEST}"
+
+        - name: Define label schema
+          id: define_labels
+          run: |
+            echo "🏷️ Defining label schema..."
+            
+            # Static labels (value must match exactly) - all from workflow inputs
+            STATIC_LABELS=(
+              "source.image:${{ steps.parse_inputs.outputs.base_image_name }}"
+              "source.multiarch_manifest:${{ steps.parse_inputs.outputs.base_image_multiarch_digest }}"
+              "source.linux_amd64_manifest:${{ inputs.base_image_manifest }}"
+              "build.source:github-actions"
+              "build.workflow:${{ github.workflow }}"
+            )
+            
+            # Dynamic labels (must exist, value doesn't matter)
+            DYNAMIC_LABELS=(
+              "build.timestamp"
+              "build.run_id"
+            )
+            
+            # Export as pipe-delimited strings
+            STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
+            DYNAMIC_LABELS_STRING=$(printf '%s|' "${DYNAMIC_LABELS[@]}")
+            
+            echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
+            echo "dynamic_labels=${DYNAMIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
+            
+            echo "✅ Label schema defined"
+
+        - name: Extract and verify linux/amd64 manifest
+          id: extract_manifest
+          run: |
+            echo "🔍 Extracting and verifying linux/amd64 manifest..."
+            
+            # Extract linux/amd64 specific manifest from multi-arch manifest
+            ACTUAL_MANIFEST=$(docker buildx imagetools inspect ${{ inputs.base_image_with_digest }} --raw | jq -r '
+              .manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest
+            ')
+            
+            if [[ -z "$ACTUAL_MANIFEST" || "$ACTUAL_MANIFEST" == "null" ]]; then
+              echo "❌ Failed to extract linux/amd64 manifest from multi-arch image"
+              exit 1
+            fi
+            
+            echo "Expected manifest: ${{ inputs.base_image_manifest }}"
+            echo "Actual manifest: $ACTUAL_MANIFEST"
+            
+            # Compare actual manifest to expected input
+            if [[ "$ACTUAL_MANIFEST" != "${{ inputs.base_image_manifest }}" ]]; then
+              echo "❌ Manifest verification failed! Expected manifest doesn't match actual."
+              echo "This could indicate the base_image_manifest input is stale or incorrect."
+              exit 1
+            fi
+            
+            echo "✅ Manifest verification passed - input matches Docker Hub"
+            echo "manifest_verified=true" >> $GITHUB_OUTPUT
+
+        - name: Login to Docker Hub
+          run: |
+            echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+
+        - name: Check private registry first
+          id: check_private
+          run: |
+            echo "🔍 Checking if image already exists in private registry with correct labels..."
+            
+            # Parse the exported label strings
+            IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
+            IFS='|' read -ra DYNAMIC_LABELS <<< "${{ steps.define_labels.outputs.dynamic_labels }}"
+            
+            # Check if already in private registry with correct labels
+            NEEDS_PUSH=true
+            if docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1; then
+              echo "🔍 Image found in private registry, checking labels..."
+              LABELS_MATCH=true
               
-              if [[ "$actual_value" != "$expected_value" ]]; then
-                echo "❌ Static label mismatch: $label_key expected '$expected_value', got '$actual_value'"
-                LABELS_MATCH=false
-                break
-              fi
-            done
-            
-            # Check dynamic labels (must exist, value irrelevant)
-            if [ "$LABELS_MATCH" = true ]; then
-              for label_key in "${DYNAMIC_LABELS[@]}"; do
+              # Check static labels (value must match)
+              for label_pair in "${STATIC_LABELS[@]}"; do
+                label_key=$(echo $label_pair | cut -d':' -f1)
+                expected_value=$(echo $label_pair | cut -d':' -f2-)
                 actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
                 
-                if [[ -z "$actual_value" ]]; then
-                  echo "❌ Dynamic label missing: $label_key"
+                if [[ "$actual_value" != "$expected_value" ]]; then
+                  echo "❌ Static label mismatch: $label_key expected '$expected_value', got '$actual_value'"
                   LABELS_MATCH=false
                   break
                 fi
               done
+              
+              # Check dynamic labels (must exist, value irrelevant)
+              if [ "$LABELS_MATCH" = true ]; then
+                for label_key in "${DYNAMIC_LABELS[@]}"; do
+                  actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
+                  
+                  if [[ -z "$actual_value" ]]; then
+                    echo "❌ Dynamic label missing: $label_key"
+                    LABELS_MATCH=false
+                    break
+                  fi
+                done
+              fi
+              
+              if [ "$LABELS_MATCH" = true ]; then
+                echo "✅ All labels match - no push needed"
+                NEEDS_PUSH=false
+              fi
+            else
+              echo "ℹ️ Image not found in private registry - will need to push"
             fi
             
-            if [ "$LABELS_MATCH" = true ]; then
-              echo "✅ All labels match - no push needed"
-              NEEDS_PUSH=false
-            fi
-          else
-            echo "ℹ️ Image not found in private registry - will need to push"
-          fi
-          
-          echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
+            echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
 
-      - name: Extract linux/amd64 manifest
-        id: extract_manifest
-        if: steps.check_private.outputs.needs_push == 'true'
-        run: |
-          echo "🔍 Extracting linux/amd64 manifest from multi-arch image..."
-          
-          # Extract linux/amd64 specific manifest from multi-arch manifest
-          LINUX_AMD64_MANIFEST=$(docker buildx imagetools inspect ${{ inputs.base_image_with_digest }} --raw | jq -r '
-            .manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest
-          ')
-          
-          if [[ -n "$LINUX_AMD64_MANIFEST" && "$LINUX_AMD64_MANIFEST" != "null" ]]; then
-            echo "✅ Linux/amd64 manifest found: $LINUX_AMD64_MANIFEST"
-            echo "linux_amd64_manifest=$LINUX_AMD64_MANIFEST" >> $GITHUB_OUTPUT
-            echo "manifest_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "❌ Failed to extract linux/amd64 manifest from multi-arch image"
-            exit 1
-          fi
-
-      - name: Pull and push to private registry
-        if: steps.extract_manifest.outputs.manifest_available == 'true'
-        run: |
-          echo "🐳 Pulling and pushing base image to private registry..."
-          
-          # Enable Docker Content Trust
-          export DOCKER_CONTENT_TRUST=1
-          
-          # Pull using the extracted linux/amd64 manifest
-          echo "📥 Pulling base image with linux/amd64 manifest..."
-          docker pull ${{ steps.define_labels.outputs.base_image_name }}@${{ steps.extract_manifest.outputs.linux_amd64_manifest }}
-          
-          # Tag for private registry
-          echo "🏷️ Tagging for private registry..."
-          docker tag ${{ steps.define_labels.outputs.base_image_name }}@${{ steps.extract_manifest.outputs.linux_amd64_manifest }} \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          
-          # Add metadata via docker buildx imagetools
-          echo "📋 Adding build metadata and pushing..."
-          docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
-            --annotation "source.image=${{ steps.define_labels.outputs.base_image_name }}" \
-            --annotation "source.multiarch_manifest=${{ steps.define_labels.outputs.base_image_digest }}" \
-            --annotation "source.linux_amd64_manifest=${{ steps.extract_manifest.outputs.linux_amd64_manifest }}" \
-            --annotation "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --annotation "build.source=github-actions" \
-            --annotation "build.workflow=${{ github.workflow }}" \
-            --annotation "build.run_id=${{ github.run_id }}" \
-            ${{ steps.define_labels.outputs.base_image_name }}@${{ steps.extract_manifest.outputs.linux_amd64_manifest }}
-          
-          echo "✅ Base image management completed with full provenance tracking"
+        - name: Pull and push to private registry
+          if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
+          run: |
+            echo "🐳 Pulling and pushing base image to private registry..."
+            
+            # Enable Docker Content Trust
+            export DOCKER_CONTENT_TRUST=1
+            
+            # Parse the static labels to extract values for docker commands
+            IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
+            
+            # Pull using the verified linux/amd64 manifest
+            echo "📥 Pulling base image with linux/amd64 manifest..."
+            docker pull ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}
+            
+            # Tag for private registry
+            echo "🏷️ Tagging for private registry..."
+            docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
+              ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+            
+            # Add metadata via docker buildx imagetools - apply all labels from schema
+            echo "📋 Adding build metadata and pushing..."
+            
+            # Build annotation arguments from static labels
+            ANNOTATIONS=""
+            for label_pair in "${STATIC_LABELS[@]}"; do
+              label_key=$(echo $label_pair | cut -d':' -f1)
+              label_value=$(echo $label_pair | cut -d':' -f2-)
+              ANNOTATIONS="$ANNOTATIONS --annotation $label_key=$label_value"
+            done
+            
+            # Add dynamic labels
+            ANNOTATIONS="$ANNOTATIONS --annotation build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            ANNOTATIONS="$ANNOTATIONS --annotation build.run_id=${{ github.run_id }}"
+            
+            docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
+              $ANNOTATIONS \
+              ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}
+            
+            echo "✅ Base image management completed with full provenance tracking"
     #####
     ###############
   ##############################
