@@ -223,28 +223,30 @@ jobs:
           docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           
-          # Add metadata via docker buildx imagetools - apply all labels from schema
-          echo "📋 Adding build metadata and pushing..."
+          # Create a temporary Dockerfile to add labels
+          echo "📋 Adding build metadata via temporary Dockerfile..."
           
-          # Build the docker buildx command dynamically
-          BUILD_CMD="docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}"
+          cat > /tmp/Dockerfile.labels << 'EOF'
+          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          EOF
           
-          # Add static label annotations
+          # Add static labels to Dockerfile
           for label_pair in "${STATIC_LABELS[@]}"; do
             label_key=$(echo $label_pair | cut -d':' -f1)
             label_value=$(echo $label_pair | cut -d':' -f2-)
-            BUILD_CMD="$BUILD_CMD --annotation \"$label_key=$label_value\""
+            echo "LABEL \"$label_key\"=\"$label_value\"" >> /tmp/Dockerfile.labels
           done
           
-          # Add dynamic label annotations
-          BUILD_CMD="$BUILD_CMD --annotation \"build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
-          BUILD_CMD="$BUILD_CMD --annotation \"build.run_id=${{ github.run_id }}\""
+          # Add dynamic labels to Dockerfile
+          echo "LABEL \"build.timestamp\"=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> /tmp/Dockerfile.labels
+          echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
           
-          # Add source image
-          BUILD_CMD="$BUILD_CMD ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}"
+          # Build and push with labels
+          docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           
-          # Execute the command
-          eval $BUILD_CMD
+          # Clean up
+          rm /tmp/Dockerfile.labels
           
           echo "✅ Base image management completed with full provenance tracking"
     #####
