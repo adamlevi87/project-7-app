@@ -231,29 +231,29 @@ jobs:
           echo "Repo key length: ${#DOCKER_TRUST_REPO_KEY}" 
           echo "Signer key length: ${#DOCKER_TRUST_SIGNER_KEY}"
           
-          # Setup root key with correct permissions and validation
+          # Setup root key with correct permissions and validation (NO base64 decode)
           echo "Setting up root key..."
-          echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+          echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
           if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key ]; then
-            echo "❌ Root key file is empty after decoding"
+            echo "❌ Root key file is empty"
             exit 1
           fi
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
           
-          # Setup repository key with correct permissions and validation
+          # Setup repository key with correct permissions and validation (NO base64 decode)
           echo "Setting up repository key..."
-          echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
+          echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
           if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key ]; then
-            echo "❌ Repository key file is empty after decoding"
+            echo "❌ Repository key file is empty"
             exit 1
           fi
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
           
-          # Setup signer key with correct permissions and validation
+          # Setup signer key with correct permissions and validation (NO base64 decode)
           echo "Setting up signer key..."
-          echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
+          echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key ]; then
-            echo "❌ Signer key file is empty after decoding"
+            echo "❌ Signer key file is empty"
             exit 1
           fi
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
