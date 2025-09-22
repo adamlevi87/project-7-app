@@ -1,6 +1,6 @@
 const express = require("express");
 const session = require("express-session");
-const csrf = require("csurf");
+const csrf = require("@dr.pogodin/csurf");
 const app = express();
 
 // Session middleware with secure settings

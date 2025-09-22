@@ -7,15 +7,12 @@
     "test:unit": "jest --coverage --detectOpenHandles --coverageThreshold='{\"global\":{\"lines\":90}}'",
     "test:integration": "./test.sh"
   },
-  "overrides": {
-    "cookie": "^0.7.0"
-  },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "csurf": "^1.11.0",
+    "@dr.pogodin/csurf": "^1.16.5",
     "express": "^5.1.0",
     "express-session": "^1.18.2"
   },
