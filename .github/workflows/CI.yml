@@ -226,21 +226,25 @@ jobs:
           # Add metadata via docker buildx imagetools - apply all labels from schema
           echo "📋 Adding build metadata and pushing..."
           
-          # Build annotation arguments from static labels
-          ANNOTATIONS=""
+          # Build the docker buildx command dynamically
+          BUILD_CMD="docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}"
+          
+          # Add static label annotations
           for label_pair in "${STATIC_LABELS[@]}"; do
             label_key=$(echo $label_pair | cut -d':' -f1)
             label_value=$(echo $label_pair | cut -d':' -f2-)
-            ANNOTATIONS="$ANNOTATIONS --annotation $label_key=$label_value"
+            BUILD_CMD="$BUILD_CMD --annotation \"$label_key=$label_value\""
           done
           
-          # Add dynamic labels
-          ANNOTATIONS="$ANNOTATIONS --annotation build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          ANNOTATIONS="$ANNOTATIONS --annotation build.run_id=${{ github.run_id }}"
+          # Add dynamic label annotations
+          BUILD_CMD="$BUILD_CMD --annotation \"build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)\""
+          BUILD_CMD="$BUILD_CMD --annotation \"build.run_id=${{ github.run_id }}\""
           
-          docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
-            $ANNOTATIONS \
-            ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}
+          # Add source image
+          BUILD_CMD="$BUILD_CMD ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}"
+          
+          # Execute the command
+          eval $BUILD_CMD
           
           echo "✅ Base image management completed with full provenance tracking"
     #####
