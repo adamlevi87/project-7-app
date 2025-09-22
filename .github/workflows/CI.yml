@@ -21,7 +21,14 @@ on:
       base_image_sha:
         description: 'SHA256 of base image to pin'
         required: false
-        default: 'sha256:8ddce69c50b5e3c2e7abc611f30d76747b1baa1f8b1e442cfb5f7a4ac8ee798b'
+        default: 'sha256:6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3'
+        # https://hub.docker.com/layers/library/node/18-buster-slim/images/sha256-6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3
+        # Image Details: linux/amd64, buster-slim v10.13, node v18.20.3
+        type: string
+      private_image_name:
+        description: 'Private registry image name'
+        required: false
+        default: 'node:18-buster-slim-latest'
         type: string
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
@@ -69,10 +76,125 @@ jobs:
       ##### Base Image Management
       ##### Pulls, labels, signs and pushes base image to private registry
       ##### Ensures secure, trusted base images for container builds
+      - name: Check image availability (public dockerhub)
+        id: check_image
+        run: |
+          echo "🔍 Checking if base image SHA is available..."
+          if docker manifest inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} > /dev/null 2>&1; then
+            echo "✅ Base image SHA found on Docker Hub"
+            echo "image_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Base image SHA no longer available on Docker Hub"
+            echo "This is expected - using existing private registry image"
+            echo "image_available=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to Docker Hub
+        if: steps.check_image.outputs.image_available == 'true'
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    
       - name: Pull and manage base image
+        if: steps.check_image.outputs.image_available == 'true'
         run: |
           echo "🐳 Managing base image for private registry..."
-          # Pull, label, sign, push logic here
+          
+          # Define expected labels schema
+          STATIC_LABELS=(
+            "source.image:${{ inputs.base_image_source }}"
+            "source.sha:${{ inputs.base_image_sha }}" 
+            "build.source:github-actions"
+            "build.workflow:${{ github.workflow }}"
+          )
+          
+          DYNAMIC_LABELS=(
+            "build.timestamp"  # Must exist, value doesn't matter
+            "build.run_id"     # Must exist, value doesn't matter  
+          )
+          
+          # Check if already in private registry with correct labels
+          NEEDS_PUSH=true
+          if docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1; then
+            echo "🔍 Checking existing image labels..."
+            LABELS_MATCH=true
+            
+            # Check static labels (value must match)
+            for label_pair in "${STATIC_LABELS[@]}"; do
+              label_key=$(echo $label_pair | cut -d':' -f1)
+              expected_value=$(echo $label_pair | cut -d':' -f2-)
+              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
+              
+              if [[ "$actual_value" != "$expected_value" ]]; then
+                echo "❌ Static label mismatch: $label_key expected '$expected_value', got '$actual_value'"
+                LABELS_MATCH=false
+                break
+              fi
+            done
+            
+            # Check dynamic labels (must exist, value irrelevant)
+            if [ "$LABELS_MATCH" = true ]; then
+              for label_key in "${DYNAMIC_LABELS[@]}"; do
+                actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}")
+                
+                if [[ -z "$actual_value" ]]; then
+                  echo "❌ Dynamic label missing: $label_key"
+                  LABELS_MATCH=false
+                  break
+                fi
+              done
+            fi
+            
+            if [ "$LABELS_MATCH" = true ]; then
+              echo "✅ All labels match - skipping push"
+              NEEDS_PUSH=false
+            fi
+          else
+            echo "ℹ️ Image not found in private registry - will push"
+          fi
+          
+          # Only proceed with pull/tag/push if needed
+          if [ "$NEEDS_PUSH" = true ]; then
+            # Enable Docker Content Trust
+            export DOCKER_CONTENT_TRUST=1
+            
+            # Pull the specific SHA
+            echo "📥 Pulling base image with SHA verification..."
+            docker pull ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }}
+            
+            # Verify the SHA matches what we expect
+            echo "🔍 Verifying image integrity..."
+            ACTUAL_SHA=$(docker inspect ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} --format='{{.Id}}')
+            echo "Expected SHA: ${{ inputs.base_image_sha }}"
+            echo "Actual SHA: $ACTUAL_SHA"
+            
+            # Compare SHAs and fail if they don't match
+            if [[ "$ACTUAL_SHA" != "sha256:${{ inputs.base_image_sha }}" && "$ACTUAL_SHA" != "${{ inputs.base_image_sha }}" ]]; then
+              echo "❌ SHA verification failed! Image integrity compromised."
+              echo "This could indicate a supply chain attack or corrupted image."
+              exit 1
+            fi
+            echo "✅ SHA verification passed - image integrity confirmed"
+            
+            # Tag with provenance labels for traceability
+            echo "🏷️ Adding provenance metadata..."
+            docker tag ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }} \
+              ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+            
+            # Add metadata via docker buildx imagetools
+            echo "📋 Adding build metadata..."
+            docker buildx imagetools create --tag ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} \
+              --annotation "source.image=${{ inputs.base_image_source }}" \
+              --annotation "source.sha=${{ inputs.base_image_sha }}" \
+              --annotation "build.timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --annotation "build.source=github-actions" \
+              --annotation "build.workflow=${{ github.workflow }}" \
+              --annotation "build.run_id=${{ github.run_id }}" \
+              ${{ inputs.base_image_source }}@${{ inputs.base_image_sha }}
+            
+            echo "✅ Base image management completed with full provenance tracking"
+          else
+            echo "ℹ️ Skipping pull/tag/push - existing image is up to date"
+          fi
 
   stage1-quality:
     runs-on: ubuntu-latest
