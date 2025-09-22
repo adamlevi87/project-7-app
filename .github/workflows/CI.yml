@@ -83,7 +83,7 @@ jobs:
         run: |
           echo "🏷️ Defining label schema..."
           
-          # Static labels (value must match exactly)
+          # Static labels (value must match exactly) - use delimited format instead of JSON
           STATIC_LABELS=(
             "source.image:${{ inputs.base_image_source }}"
             "source.manifest:${{ inputs.base_image_manifest }}" 
@@ -97,9 +97,12 @@ jobs:
             "build.run_id"
           )
           
-          # Export as JSON arrays
-          echo "static_labels=$(printf '%s\n' "${STATIC_LABELS[@]}" | jq -R . | jq -s .)" >> $GITHUB_OUTPUT
-          echo "dynamic_labels=$(printf '%s\n' "${DYNAMIC_LABELS[@]}" | jq -R . | jq -s .)" >> $GITHUB_OUTPUT
+          # Export as pipe-delimited strings (safer than JSON)
+          STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
+          DYNAMIC_LABELS_STRING=$(printf '%s|' "${DYNAMIC_LABELS[@]}")
+          
+          echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
+          echo "dynamic_labels=${DYNAMIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
           
           echo "✅ Label schema defined"
       #####
@@ -117,8 +120,8 @@ jobs:
           echo "🔍 Checking if image already exists in private registry with correct labels..."
           
           # Parse the exported label arrays
-          readarray -t STATIC_LABELS < <(echo '${{ steps.define_labels.outputs.static_labels }}' | jq -r '.[]')
-          readarray -t DYNAMIC_LABELS < <(echo '${{ steps.define_labels.outputs.dynamic_labels }}' | jq -r '.[]')
+          IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
+          IFS='|' read -ra DYNAMIC_LABELS <<< "${{ steps.define_labels.outputs.dynamic_labels }}"
           
           # Check if already in private registry with correct labels
           NEEDS_PUSH=true
