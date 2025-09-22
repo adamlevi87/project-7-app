@@ -281,6 +281,16 @@ jobs:
           
           if [ $TRUST_INSPECT_RESULT -eq 0 ]; then
             echo "✅ Trust metadata found and loaded"
+            echo "📋 Current trust configuration:"
+            docker trust inspect docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --pretty
+            
+            echo "🔍 Available signing keys in our setup:"
+            echo "Root key ID: ${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}"
+            echo "Repo key ID: ${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}"
+            echo "Signer key ID: ${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}"
+            
+            echo "📁 Local key files:"
+            ls -la ~/.docker/trust/private/
           else
             echo "ℹ️ No existing trust metadata found (expected for new repositories)"
           fi
@@ -339,7 +349,7 @@ jobs:
           rm /tmp/Dockerfile.labels
           
           echo "✅ Base image management completed with full provenance tracking and Content Trust signing"
-  #####
+    #####
     ###############
   ##############################
         
