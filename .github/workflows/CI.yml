@@ -202,33 +202,35 @@ jobs:
           fi
           
           echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
-          
+
       - name: Setup Docker Content Trust
         run: |
           echo "🔐 Setting up Docker Content Trust..."
           
           # Create trust directory structure
           mkdir -p ~/.docker/trust/private
-          mkdir -p ~/.docker/trust/private/root_keys
           
-          # Setup root key
+          # Setup root key with correct permissions
           echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
           
-          # Setup repository key  
+          # Setup repository key with correct permissions
           echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
           
-          # Setup signer key
+          # Setup signer key with correct permissions
           echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           
-          echo "✅ Docker Content Trust configured"
+          # Verify files were created with correct permissions
+          ls -la ~/.docker/trust/private/
+          
+          echo "✅ Docker Content Trust configured with proper key permissions"
 
-      - name: Pull and push to private registry
+      - name: Pull and push signed image to private registry
         if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
         run: |
-          echo "🐳 Pulling and pushing base image to private registry..."
+          echo "🐳 Pulling and pushing base image to private registry with Content Trust..."
           
           # Enable Docker Content Trust with pre-configured keys
           export DOCKER_CONTENT_TRUST=1
@@ -265,14 +267,14 @@ jobs:
           echo "LABEL \"build.timestamp\"=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> /tmp/Dockerfile.labels
           echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
           
-          # Build and push with labels
+          # Build and push with labels (Content Trust will sign automatically)
           docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           
           # Clean up
           rm /tmp/Dockerfile.labels
           
-          echo "✅ Base image management completed with full provenance tracking"
+          echo "✅ Base image management completed with full provenance tracking and Content Trust signing"
     #####
     ###############
   ##############################
