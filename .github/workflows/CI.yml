@@ -267,7 +267,25 @@ jobs:
           head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key  
           head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           
-          echo "✅ Docker Content Trust configured with proper key permissions"
+          # Set environment variables for Docker Content Trust
+          export DOCKER_CONTENT_TRUST=1
+          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
+          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
+          
+          echo "🔄 Initializing trust metadata..."
+          # Try to pull existing trust metadata to populate the local cache
+          set +e
+          docker trust inspect docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
+          TRUST_INSPECT_RESULT=$?
+          set -e
+          
+          if [ $TRUST_INSPECT_RESULT -eq 0 ]; then
+            echo "✅ Trust metadata found and loaded"
+          else
+            echo "ℹ️ No existing trust metadata found (expected for new repositories)"
+          fi
+          
+          echo "✅ Docker Content Trust configured with proper key permissions and metadata"
         env:
           DOCKER_TRUST_ROOT_KEY: ${{ secrets.DOCKER_TRUST_ROOT_KEY }}
           DOCKER_TRUST_REPO_KEY: ${{ secrets.DOCKER_TRUST_REPO_KEY }}
