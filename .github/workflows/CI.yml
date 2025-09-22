@@ -225,31 +225,53 @@ jobs:
           mkdir -p ~/.docker/trust/private
           mkdir -p ~/.docker/trust/tuf
           
-          # Setup root key with correct permissions
+          # Debug: Check if secrets are populated
+          echo "Debug: Checking secret lengths..."
+          echo "Root key length: ${#DOCKER_TRUST_ROOT_KEY}"
+          echo "Repo key length: ${#DOCKER_TRUST_REPO_KEY}" 
+          echo "Signer key length: ${#DOCKER_TRUST_SIGNER_KEY}"
+          
+          # Setup root key with correct permissions and validation
+          echo "Setting up root key..."
           echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+          if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key ]; then
+            echo "❌ Root key file is empty after decoding"
+            exit 1
+          fi
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
           
-          # Setup repository key with correct permissions
+          # Setup repository key with correct permissions and validation
+          echo "Setting up repository key..."
           echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
+          if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key ]; then
+            echo "❌ Repository key file is empty after decoding"
+            exit 1
+          fi
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
           
-          # Setup signer key with correct permissions
+          # Setup signer key with correct permissions and validation
+          echo "Setting up signer key..."
           echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" | base64 -d > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
+          if [ ! -s ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key ]; then
+            echo "❌ Signer key file is empty after decoding"
+            exit 1
+          fi
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           
-          # Verify files were created with correct permissions
+          # Verify files were created with correct permissions and show first few chars
+          echo "Verify key files:"
           ls -la ~/.docker/trust/private/
           
-          # Set up trust environment variables
-          export DOCKER_CONTENT_TRUST=1
-          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
-          
-          # Initialize the trust metadata by pulling the existing trust data
-          echo "🔄 Initializing trust metadata..."
-          docker trust inspect docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} || echo "No existing trust data found (expected for new repos)"
+          echo "Check key file formats (first line of each):"
+          head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+          head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key  
+          head -1 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           
           echo "✅ Docker Content Trust configured with proper key permissions"
+        env:
+          DOCKER_TRUST_ROOT_KEY: ${{ secrets.DOCKER_TRUST_ROOT_KEY }}
+          DOCKER_TRUST_REPO_KEY: ${{ secrets.DOCKER_TRUST_REPO_KEY }}
+          DOCKER_TRUST_SIGNER_KEY: ${{ secrets.DOCKER_TRUST_SIGNER_KEY }}
 
       - name: Pull and push signed image to private registry
         if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
@@ -299,7 +321,7 @@ jobs:
           rm /tmp/Dockerfile.labels
           
           echo "✅ Base image management completed with full provenance tracking and Content Trust signing"
-    #####
+  #####
     ###############
   ##############################
         
