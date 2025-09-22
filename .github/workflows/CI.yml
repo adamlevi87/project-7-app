@@ -228,6 +228,9 @@ jobs:
           
           echo "✅ Base image management completed with full provenance tracking"
         #####
+        ###############
+        ##############################
+        
   stage1-quality:
     runs-on: ubuntu-latest
     needs: stage_0_base_image_management
