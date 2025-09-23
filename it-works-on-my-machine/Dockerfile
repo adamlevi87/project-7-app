@@ -14,7 +14,7 @@ COPY server.js ./
 COPY test.sh ./
 
 # Stage 2: Runtime stage  
-FROM adamlevi87/node-18-buster-slim AS runtime
+FROM adamlevi87/node-18-buster-slim-current AS runtime
 WORKDIR /app
 
 # Copy only what's needed for runtime
