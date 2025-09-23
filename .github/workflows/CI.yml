@@ -152,6 +152,7 @@ jobs:
           
           if [ $MANIFEST_EXISTS -eq 0 ]; then
             echo "🔍 Image found in private registry, checking labels..."
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
             LABELS_MATCH=true
             for label_pair in "${STATIC_LABELS[@]}"; do
               label_key=$(echo $label_pair | cut -d':' -f1)
