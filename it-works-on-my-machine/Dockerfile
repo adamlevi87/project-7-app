@@ -2,7 +2,7 @@
 FROM adamlevi87/node-18-alpine-current AS builder
 
 # dumb init
-RUN apk add --no-cache dumb-init=1.2.5-r2
+RUN apk add --no-cache dumb-init=1.2.5-r3
 
 # Workdir
 WORKDIR /app
