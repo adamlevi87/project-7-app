@@ -192,10 +192,9 @@ jobs:
           
           # Enable Docker Content Trust with pre-configured keys
           export DOCKER_CONTENT_TRUST=1
-          export DOCKER_CONTENT_TRUST_SIGNER_PASSPHRASE="${{ secrets.DOCKER_TRUST_SIGNER_PASSPHRASE }}"
           export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
           export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
-          
+          export DOCKER_CONTENT_TRUST_SIGNER_PASSPHRASE="${{ secrets.DOCKER_TRUST_SIGNER_PASSPHRASE }}"
           
           # Parse the static labels
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
