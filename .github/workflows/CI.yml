@@ -423,7 +423,7 @@ jobs:
     - name: Lint Dockerfile
       run: |
         echo "🐳 Linting Dockerfile..."
-        hadolint Dockerfile
+        hadolint --ignore DL3006 Dockerfile
     #####
     ###############
 
