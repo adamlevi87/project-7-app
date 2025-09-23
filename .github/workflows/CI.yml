@@ -151,89 +151,28 @@ jobs:
           fi
           echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
 
-      - name: Setup Docker Content Trust
-        run: |
-          echo "🔐 Setting up Docker Content Trust..."
-          
-          # Create trust directory structure
-          mkdir -p ~/.docker/trust/private
-          mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata
-          
-          # Setup private keys
-          echo "Setting up private keys..."
-          echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          
-          echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
-          
-          # Use FULL signer key ID filename (not short)
-          echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
-          
-          # Setup TUF metadata using heredoc to avoid escaping issues
-          echo "Setting up TUF metadata..."
-          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json << 'EOF'
-          ${{ secrets.DOCKER_TRUST_TUF_ROOT }}
-          EOF
-          
-          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json << 'EOF'
-          ${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}
-          EOF
-          
-          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json << 'EOF'
-          ${{ secrets.DOCKER_TRUST_TUF_TARGETS }}
-          EOF
-          
-          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json << 'EOF'
-          ${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}
-          EOF
-          
-          # Create targets subdirectory and add delegation files using heredoc
-          mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets
-          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json << 'EOF'
-          ${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}
-          EOF
-          
-          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json << 'EOF'
-          ${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}
-          EOF
-          
-          # Verify setup
-          echo "Verifying trust setup..."
-          ls -la ~/.docker/trust/private/
-          ls -la ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/
-          
-          echo "=== CURRENT CI TRUST STRUCTURE ==="
-          find ~/.docker/trust -type f -exec ls -la {} \; | sort
-          
-          echo "=== ENVIRONMENT VARIABLES ==="
-          env | grep DOCKER_CONTENT_TRUST || echo "No DCT env vars set"
-          
-          echo "✅ Docker Content Trust configured with keys and TUF metadata"
-
-      - name: Pull and push signed image to private registry
+      - name: Pull verified base image and push to private registry
         if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
         run: |
-          echo "🐳 Pulling and pushing base image to private registry with Content Trust..."
+          echo "🐳 Pulling verified base image and pushing to private registry..."
           
-          # Enable Docker Content Trust with pre-configured keys
+          # Enable Content Trust for pulling from public Docker Hub (verification only)
           export DOCKER_CONTENT_TRUST=1
-          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_SIGNER_PASSPHRASE="${{ secrets.DOCKER_TRUST_SIGNER_PASSPHRASE }}"
           
-          # Parse the static labels
-          IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
-          
-          # Pull using the verified linux/amd64 manifest
-          echo "📥 Pulling base image with linux/amd64 manifest..."
+          # Pull using the verified linux/amd64 manifest with trust verification
+          echo "📥 Pulling base image with Content Trust verification..."
           docker pull ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}
+          
+          # Disable Content Trust for private registry operations
+          unset DOCKER_CONTENT_TRUST
           
           # Tag for private registry
           echo "🏷️ Tagging for private registry..."
           docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          
+          # Parse the static labels
+          IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
           
           # Create a temporary Dockerfile to add labels
           echo "📋 Adding build metadata via temporary Dockerfile..."
@@ -252,14 +191,14 @@ jobs:
           echo "LABEL \"build.timestamp\"=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> /tmp/Dockerfile.labels
           echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
           
-          # Build and push with labels (Content Trust will sign automatically)
+          # Build and push with labels (without Content Trust signing)
           docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           
           # Clean up
           rm /tmp/Dockerfile.labels
           
-          echo "✅ Base image management completed with full provenance tracking and Content Trust signing"   
+          echo "✅ Base image management completed with verified public image and private registry caching"
     #####
     ###############
   ##############################
