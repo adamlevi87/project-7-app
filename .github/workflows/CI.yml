@@ -159,6 +159,8 @@ jobs:
               set +e
               actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
               INSPECT_RESULT=$?
+              echo "Expected: $expected_value"
+              echo "Actual: $actual_value"
               set -e
               if [ $INSPECT_RESULT -ne 0 ] || [[ "$actual_value" != "$expected_value" ]]; then
                 echo "❌ Label mismatch: $label_key"
