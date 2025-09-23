@@ -29,7 +29,7 @@ on:
       private_image_name:
         description: 'Private registry image name'
         required: false
-        default: 'node:18-buster-slim-latest'
+        default: 'node-18-buster-slim-latest'
         type: string
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
