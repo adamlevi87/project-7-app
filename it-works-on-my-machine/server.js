@@ -41,6 +41,21 @@ app.get("/disable-health", (req, res) => {
   res.send("Health disabled");
 });
 
+// Graceful termination
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully");
+  server.close(() => {
+    console.log("Process terminated");
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully"); 
+  server.close(() => {
+    console.log("Process terminated");
+  });
+});
+
 // Export the app for testing
 module.exports = app;
 
