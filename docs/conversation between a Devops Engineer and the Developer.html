@@ -294,8 +294,15 @@ git push</pre>
                 &nbsp;&nbsp;&nbsp;&nbsp;* unnecessary file : app/Dockerfile
             </div>
 
-            To fix the root user usage and unnecessary files being copied over and the suspicious directory: I'll remove the generic copy all (COPY . .) and copy only the files we need (package-lock.json, server.js, test.sh). We will also delete the .npm folder - it is not required to be part of the container. Also the npm install for a "production" image should ignore devDependencies.
-            <br><br>
+            Okay, I need to fix a bunch of stuff here:
+            <ul>
+                <li>Get rid of that root user issue - can't have the app running as root</li>
+                <li>Stop copying everything with `COPY . .` - way too much junk getting in there</li>
+                <li>Only copy the files I actually need: package-lock.json, server.js, test.sh</li>
+                <li>Delete that .npm folder - it's just taking up space and flagged as suspicious</li>
+                <li>Fix the npm install to use `--omit=dev` so we're not pulling in devDependencies for production</li>
+            </ul>
+            <br>
             Alex updates the dockerfile:
 
             <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>COPY package.json ./
@@ -349,9 +356,9 @@ app.listen(port, () => {
             <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
             <em>(Alex thinks to himself...)</em>
             <br><br>
-            Regarding the other issues - the latest tag warning and content trust - I need to update the CI to support verification of the integrity and publisher of specific images from docker hub, and when building the images in the workflow to use a SHA tag.
+            Regarding the other issues - the latest tag warning and content trust - I need to update the CI to support verification of the integrity and publisher of specific images from docker hub, and when building the images in the workflow to use a SHA tag - but that might collide with additional changes I have- will think about it again later on.
             <br><br>
-            So on every docker build in the CI workflow I'll add:
+            I might use this before every docker build in the CI workflow:
 
             <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>export DOCKER_CONTENT_TRUST=1
 docker build -t dockle-scan:ci-${GITHUB_SHA} .</pre>
@@ -447,7 +454,7 @@ git push</pre>
             <br><br>
             <em>(Alex thinks to himself about CI best practices for Javascript based apps specifically and suggests this...)</em>
             <br><br>
-            I will edit the package.json:
+            I will edit the package.json: (must add a new line at the end, prettier needs it for validation).
 
             <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>{
   "name": "it-works-on-my-machine",
@@ -479,7 +486,7 @@ git push</pre>
 
         <div class="message devops-message">
             <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
-            Alex creates a server.test.js in the working directory, which maps everything he wants Jest to test (the basic GET health, GET disable health and GET health when health is disabled):
+            Alex creates a server.test.js in the working directory, which maps everything he wants Jest to test (the basic GET health, GET disable health and GET health when health is disabled): (must add a new line at the end, prettier needs it for validation).
 
             <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>const request = require("supertest");
 const app = require("./server");
@@ -577,33 +584,81 @@ git push</pre>
             <br><br>
             <a href="https://scout.docker.com/vulnerabilities/id/CVE-2024-21538" target="_blank">https://scout.docker.com/vulnerabilities/id/CVE-2024-21538</a>
             <br><br>
-            Alex and Jordan read up on the issue. The issue is with the NPM itself, but our application only uses NPM on build time and not on run time, they decide to document it and create an overview plan to migrate the application to a new base image in the future.
+            Alex and Jordan read up on the CVE issue. The problem is with NPM itself, but since their application only uses NPM at build time and not at runtime, they decide to document it and create an overview plan to migrate the application to a new base image in the future.
             <br><br>
-            Alex takes this chance to separate the dockerfile into stages, as follows, the entire dockerfile:
+            Alex does some light research and finds out that alpine might not be desired in production environments - he adds this to the migration plan. During his research, he goes over the other Node 18 base images on Docker Hub and none of them are an easy pick since they all have many vulnerabilities. Upgrading out of Node 18 is out of the question for now, so he'll have to work with what they have.
+            <br><br>
+            Alex continues by reviewing the Dockerfile and doing some research on best practices, specifically for JavaScript apps and Node/NPM usage.
+            <br><br>
+            First, he decides to add a new stage to the CI where he pulls the base image from Docker Hub and saves it to a private Docker Hub registry (which will be used from now on in the CI). He's a bit short on time, so he leaves a note for himself - "secure the communication with the private Docker Hub registry" (future task). He understands that not having a secure signing operation with the private registry is a security risk of sorts, but it's manageable for now.
+            <br><br>
+            He decides on creating a 2-stage Dockerfile that uses this new private image for both stages.
+            <br><br>
+            Alex adds a must-have ENV variable for Express: `NODE_ENV=production`. He knows this is critical for Express security in production.
+            <br><br>
+            Then Alex applies additional improvements to the Dockerfile:
+            <ul>
+                <li>Node won't run as PID 1 anymore</li>
+                <li>The application won't run as root</li>
+                <li>Fewer files are copied over (no more `COPY . .`)</li>
+                <li>He introduces `dumb-init` to run as PID 1 and handle the node/server.js process</li>
+            </ul>
+            <br>
+            With the `dumb-init` change, he also needs to make changes to server.js to support graceful termination:
 
-            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button># Stage 1: Build stage
-FROM node:18-alpine AS builder
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>// Graceful termination
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully");
+  server.close(() => {
+    console.log("Process terminated");
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully"); 
+  server.close(() => {
+    console.log("Process terminated");
+  });
+});
+</pre>
+
+            And the entire dockerfile with all the new changes:
+
+            <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>########## Stage 1: Build stage
+FROM adamlevi87/node-18-alpine-current AS builder
+
+# dumb init
+RUN apk add --no-cache dumb-init=1.2.5-r3
+
+# Workdir
 WORKDIR /app
 
 # Copy files for npm
 COPY package.json ./
 COPY package-lock.json ./
-# run npm
+
+# run npm ci 
 RUN npm ci --omit=dev
 
-# Copy Additional relevant files for production
-COPY server.js ./
-COPY test.sh ./
+########## Stage 2: Runtime stage  
+FROM adamlevi87/node-18-alpine-current AS runtime
 
-# Stage 2: Runtime stage  
-FROM node:18-alpine AS runtime
+# Workdir
 WORKDIR /app
+
+# Set ENV mode for NODE
+ENV NODE_ENV=production
+
+# Copy from build stage - dumb init
+COPY --from=builder /usr/bin/dumb-init /usr/bin/dumb-init
 
 # Copy only what's needed for runtime
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/server.js ./
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/test.sh ./
+
+# Copy additional relevant files for production
+COPY server.js ./
+COPY test.sh ./
 
 # Change ownership to node user
 RUN chown -R node:node /app
@@ -618,6 +673,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 CMD ["node", "server.js"]
 </pre>
             <div class="timestamp">10:10 AM</div>
@@ -640,7 +696,7 @@ CMD ["node", "server.js"]
 
             Jordan had to go for a bit, Alex is left by himself.
             <br><br>
-            Alex calls his good friend Claude, which seems to always be up - he never sleeps- after trial and error they implement CSRF middleware protection, they edit server.js together: (must add a new line at the end, prettier needs it for validation).
+            Alex calls his good friend Claude, which seems to always be up - he never sleeps- after some trial and error they implement CSRF middleware protection, they edit server.js together: (must add a new line at the end, prettier needs it for validation).
 
             <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>const express = require("express");
 const session = require("express-session");
@@ -691,8 +747,23 @@ module.exports = app;
 /* istanbul ignore next */
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
+  });
+
+  // Graceful termination
+  process.on("SIGTERM", () => {
+    console.log("SIGTERM received, shutting down gracefully");
+    server.close(() => {
+      console.log("Process terminated");
+    });
+  });
+
+  process.on("SIGINT", () => {
+    console.log("SIGINT received, shutting down gracefully");
+    server.close(() => {
+      console.log("Process terminated");
+    });
   });
 }
 </pre>
@@ -701,7 +772,9 @@ if (require.main === module) {
 
         <div class="message devops-message">
             <div class="speaker devops-speaker">🛠️ Alex (DevOps Engineer)</div>
-            Alex runs:
+            Alex runs a few npm installs to support the CSRF fix.
+            <br><br>
+            The specific dr.pogodin/csurf was created off the discontinued CSRF.
 
             <pre class="code-block"><button class="copy-button" onclick="copyToClipboard(this)">Copy</button>npm install @dr.pogodin/csurf
 npm install express-session
