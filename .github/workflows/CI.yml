@@ -34,12 +34,12 @@ on:
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
         required: false
-        default: false
+        default: true
         type: boolean
       skip_stage1:
         description: 'Skip Stage 1 (Quality checks)'
         required: false
-        default: true
+        default: false
         type: boolean
       skip_stage2:
         description: 'Skip Stage 2 (Testing)'
