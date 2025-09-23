@@ -388,10 +388,18 @@ jobs:
         sudo mv dockle /usr/local/bin/
         rm dockle.tar.gz LICENSE README.md
 
+    ############### Docker Hub Authentication
+    ##### Authenticate with Docker Hub for private registry access
+    ##### Required for both pulling from and pushing to private repositories
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    #####
+
     - name: Run dockle security scan
       run: |
         # Build image first for dockle to scan
-        export DOCKER_CONTENT_TRUST=1
+        export DOCKER_CONTENT_TRUST=0
         docker build -t dockle-scan:ci-${GITHUB_SHA} .
         dockle --exit-code 1 --exit-level INFO  dockle-scan:ci-${GITHUB_SHA}
         
@@ -527,12 +535,20 @@ jobs:
     #####
     ###############
 
+    ############### Docker Hub Authentication
+    ##### Authenticate with Docker Hub for private registry access
+    ##### Required for both pulling from and pushing to private repositories
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    #####
+
     ############### Integration Tests Block
     ##### Docker Build
     - name: Build test Docker image
       run: |
         echo "🐳 Building Docker image for integration tests..."
-        export DOCKER_CONTENT_TRUST=1
+        export DOCKER_CONTENT_TRUST=0
         docker build -t test-image:ci-${GITHUB_SHA} .
     #####
 
@@ -642,10 +658,18 @@ jobs:
         # Add to PATH for this session
         echo "$HOME/.docker/scout" >> $GITHUB_PATH
 
+    ############### Docker Hub Authentication
+    ##### Authenticate with Docker Hub for private registry access
+    ##### Required for both pulling from and pushing to private repositories
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    #####
+
     - name: Build image for security scanning
       run: |
         echo "🐳 Building Docker image for security scanning..."
-        export DOCKER_CONTENT_TRUST=1
+        export DOCKER_CONTENT_TRUST=0
         docker build -t security-scan:ci-${GITHUB_SHA} .
     # # TEMPORARY trivy scan container
     # - name: Trivy container scan
@@ -746,12 +770,20 @@ jobs:
         uses: ./.github/actions/setup-node
 
   ############################## Stage 4: Container Validation
+      ############### Docker Hub Authentication
+      ##### Authenticate with Docker Hub for private registry access
+      ##### Required for both pulling from and pushing to private repositories
+      - name: Login to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+      #####
+
       ############### Docker Build for Container Analysis
       ##### Build image for container quality analysis
       - name: Build image for container validation
         run: |
           echo "🐳 Building Docker image for container validation..."
-          export DOCKER_CONTENT_TRUST=1
+          export DOCKER_CONTENT_TRUST=0
           docker build --no-cache -t ci-image:ci-${GITHUB_SHA} .
       #####
 
@@ -882,13 +914,21 @@ jobs:
     
   ############################## Stage 5: Performance & Compliance
     ############### Performance Baseline Block
+    ############### Docker Hub Authentication
+    ##### Authenticate with Docker Hub for private registry access
+    ##### Required for both pulling from and pushing to private repositories
+    - name: Login to Docker Hub
+      run: |
+        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+    #####
+
     ##### Docker Stats Performance Baseline
     ##### Captures container resource usage metrics for performance regression detection
     ##### Establishes baseline for Kubernetes HPA and resource limit configuration
     - name: Build image for performance testing
       run: |
         echo "🐳 Building Docker image for performance testing..."
-        export DOCKER_CONTENT_TRUST=1
+        export DOCKER_CONTENT_TRUST=0
         docker build -t ci-image:ci-${GITHUB_SHA} .
     
     - name: Capture performance baseline
