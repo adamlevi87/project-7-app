@@ -2,7 +2,7 @@
 FROM adamlevi87/node-18-alpine-current AS builder
 
 # dumb init
-RUN apk update && apk add dumb-init
+RUN apk add --no-cache dumb-init
 
 # Workdir
 WORKDIR /app
@@ -12,7 +12,7 @@ COPY package.json ./
 COPY package-lock.json ./
 
 # run npm ci 
-RUN npm ci --omit=dev && rm -rf /root/.npm
+RUN npm ci --omit=dev
 
 
 ########## Stage 2: Runtime stage  
