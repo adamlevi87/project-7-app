@@ -65,179 +65,179 @@ env:
   WORKFLOW_TIMEOUT: 15
 
 jobs:
-  stage_0_base_image_management:
-    runs-on: ubuntu-latest
-    if: ${{ inputs.skip_stage_0 != true }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      
-      - name: Parse base image inputs
-        id: parse_inputs
-        run: |
-          echo "🔍 Parsing base image inputs..."
-          BASE_IMAGE_NAME=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f1)
-          BASE_IMAGE_MULTIARCH_DIGEST=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f2)
-          echo "base_image_name=${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
-          echo "base_image_multiarch_digest=${BASE_IMAGE_MULTIARCH_DIGEST}" >> $GITHUB_OUTPUT
-          echo "✅ Base image inputs parsed"
+    stage_0_base_image_management:
+      runs-on: ubuntu-latest
+      if: ${{ inputs.skip_stage_0 != true }}
+      steps:
+        - name: Checkout repository
+          uses: actions/checkout@v4
+        
+        - name: Parse base image inputs
+          id: parse_inputs
+          run: |
+            echo "🔍 Parsing base image inputs..."
+            BASE_IMAGE_NAME=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f1)
+            BASE_IMAGE_MULTIARCH_DIGEST=$(echo "${{ inputs.base_image_with_digest }}" | cut -d'@' -f2)
+            echo "base_image_name=${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
+            echo "base_image_multiarch_digest=${BASE_IMAGE_MULTIARCH_DIGEST}" >> $GITHUB_OUTPUT
+            echo "✅ Base image inputs parsed"
 
-      - name: Define label schema
-        id: define_labels
-        run: |
-          echo "🏷️ Defining label schema..."
-          STATIC_LABELS=(
-            "source.image:${{ steps.parse_inputs.outputs.base_image_name }}"
-            "source.multiarch_manifest:${{ steps.parse_inputs.outputs.base_image_multiarch_digest }}"
-            "source.linux_amd64_manifest:${{ inputs.base_image_manifest }}"
-            "build.source:github-actions"
-            "build.workflow:${{ github.workflow }}"
-          )
-          STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
-          echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
-          echo "✅ Label schema defined"
+        - name: Define label schema
+          id: define_labels
+          run: |
+            echo "🏷️ Defining label schema..."
+            STATIC_LABELS=(
+              "source.image:${{ steps.parse_inputs.outputs.base_image_name }}"
+              "source.multiarch_manifest:${{ steps.parse_inputs.outputs.base_image_multiarch_digest }}"
+              "source.linux_amd64_manifest:${{ inputs.base_image_manifest }}"
+              "build.source:github-actions"
+              "build.workflow:${{ github.workflow }}"
+            )
+            STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
+            echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
+            echo "✅ Label schema defined"
 
-      - name: Extract and verify linux/amd64 manifest
-        id: extract_manifest
-        run: |
-          echo "🔍 Extracting and verifying linux/amd64 manifest..."
-          ACTUAL_MANIFEST=$(docker buildx imagetools inspect ${{ inputs.base_image_with_digest }} --raw | jq -r '
-            .manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest
-          ')
-          if [[ "$ACTUAL_MANIFEST" != "${{ inputs.base_image_manifest }}" ]]; then
-            echo "❌ Manifest verification failed!"
-            exit 1
-          fi
-          echo "✅ Manifest verification passed"
-          echo "manifest_verified=true" >> $GITHUB_OUTPUT
+        - name: Extract and verify linux/amd64 manifest
+          id: extract_manifest
+          run: |
+            echo "🔍 Extracting and verifying linux/amd64 manifest..."
+            ACTUAL_MANIFEST=$(docker buildx imagetools inspect ${{ inputs.base_image_with_digest }} --raw | jq -r '
+              .manifests[] | select(.platform.architecture == "amd64" and .platform.os == "linux") | .digest
+            ')
+            if [[ "$ACTUAL_MANIFEST" != "${{ inputs.base_image_manifest }}" ]]; then
+              echo "❌ Manifest verification failed!"
+              exit 1
+            fi
+            echo "✅ Manifest verification passed"
+            echo "manifest_verified=true" >> $GITHUB_OUTPUT
 
-      - name: Login to Docker Hub
-        run: |
-          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+        - name: Login to Docker Hub
+          run: |
+            echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
 
-      - name: Check private registry first
-        id: check_private
-        run: |
-          echo "🔍 Checking if image already exists in private registry..."
-          IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
-          NEEDS_PUSH=true
-          set +e
-          docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
-          MANIFEST_EXISTS=$?
-          set -e
-          
-          if [ $MANIFEST_EXISTS -eq 0 ]; then
-            echo "🔍 Image found in private registry, checking labels..."
-            LABELS_MATCH=true
+        - name: Check private registry first
+          id: check_private
+          run: |
+            echo "🔍 Checking if image already exists in private registry..."
+            IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
+            NEEDS_PUSH=true
+            set +e
+            docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
+            MANIFEST_EXISTS=$?
+            set -e
+            
+            if [ $MANIFEST_EXISTS -eq 0 ]; then
+              echo "🔍 Image found in private registry, checking labels..."
+              LABELS_MATCH=true
+              for label_pair in "${STATIC_LABELS[@]}"; do
+                label_key=$(echo $label_pair | cut -d':' -f1)
+                expected_value=$(echo $label_pair | cut -d':' -f2-)
+                set +e
+                actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
+                INSPECT_RESULT=$?
+                set -e
+                if [ $INSPECT_RESULT -ne 0 ] || [[ "$actual_value" != "$expected_value" ]]; then
+                  echo "❌ Label mismatch: $label_key"
+                  LABELS_MATCH=false
+                  break
+                fi
+              done
+              if [ "$LABELS_MATCH" = true ]; then
+                echo "✅ All labels match - no push needed"
+                NEEDS_PUSH=false
+              fi
+            else
+              echo "ℹ️ Image not found in private registry - will need to push"
+            fi
+            echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
+
+        - name: Setup Docker Content Trust
+          run: |
+            echo "🔐 Setting up Docker Content Trust..."
+            
+            # Create trust directory structure
+            mkdir -p ~/.docker/trust/private
+            mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata
+            
+            # Setup private keys
+            echo "Setting up private keys..."
+            echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+            chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
+            
+            echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
+            chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
+            
+            # Use FULL signer key ID filename (not short)
+            echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
+            chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
+            
+            # Setup TUF metadata
+            echo "Setting up TUF metadata..."
+            echo "${{ secrets.DOCKER_TRUST_TUF_ROOT }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json
+            echo "${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json
+            echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json
+            echo "${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json
+            
+            # Create targets subdirectory and add delegation files
+            mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets
+            echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json
+            echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json
+            
+            # Verify setup
+            echo "Verifying trust setup..."
+            ls -la ~/.docker/trust/private/
+            ls -la ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/
+            
+            echo "✅ Docker Content Trust configured with keys and TUF metadata"
+
+        - name: Pull and push signed image to private registry
+          if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
+          run: |
+            echo "🐳 Pulling and pushing base image to private registry with Content Trust..."
+            
+            # Enable Docker Content Trust with pre-configured keys
+            export DOCKER_CONTENT_TRUST=1
+            export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
+            export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
+            export DOCKER_CONTENT_TRUST_SIGNER_PASSPHRASE="${{ secrets.DOCKER_TRUST_SIGNER_PASSPHRASE }}"
+            
+            # Parse the static labels
+            IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
+            
+            # Pull using the verified linux/amd64 manifest
+            echo "📥 Pulling base image with linux/amd64 manifest..."
+            docker pull ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}
+            
+            # Tag for private registry
+            echo "🏷️ Tagging for private registry..."
+            docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
+              ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+            
+            # Create a temporary Dockerfile to add labels
+            echo "📋 Adding build metadata via temporary Dockerfile..."
+            cat > /tmp/Dockerfile.labels << 'EOF'
+            FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+            EOF
+            
+            # Add static labels to Dockerfile
             for label_pair in "${STATIC_LABELS[@]}"; do
               label_key=$(echo $label_pair | cut -d':' -f1)
-              expected_value=$(echo $label_pair | cut -d':' -f2-)
-              set +e
-              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
-              INSPECT_RESULT=$?
-              set -e
-              if [ $INSPECT_RESULT -ne 0 ] || [[ "$actual_value" != "$expected_value" ]]; then
-                echo "❌ Label mismatch: $label_key"
-                LABELS_MATCH=false
-                break
-              fi
+              label_value=$(echo $label_pair | cut -d':' -f2-)
+              echo "LABEL \"$label_key\"=\"$label_value\"" >> /tmp/Dockerfile.labels
             done
-            if [ "$LABELS_MATCH" = true ]; then
-              echo "✅ All labels match - no push needed"
-              NEEDS_PUSH=false
-            fi
-          else
-            echo "ℹ️ Image not found in private registry - will need to push"
-          fi
-          echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
-
-      - name: Setup Docker Content Trust
-        run: |
-          echo "🔐 Setting up Docker Content Trust..."
-          
-          # Create trust directory structure
-          mkdir -p ~/.docker/trust/private
-          mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata
-          
-          # Setup private keys
-          echo "Setting up private keys..."
-          echo "${{ secrets.DOCKER_TRUST_ROOT_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_ROOT_KEY_ID }}.key
-          
-          echo "${{ secrets.DOCKER_TRUST_REPO_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
-          chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_REPO_KEY_ID }}.key
-          
-          # Use SHORT signer key ID (1579e31b009a) not the full ID
-          echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/1579e31b009a.key
-          chmod 600 ~/.docker/trust/private/1579e31b009a.key
-          
-          # Setup TUF metadata
-          echo "Setting up TUF metadata..."
-          echo "${{ secrets.DOCKER_TRUST_TUF_ROOT }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json
-          
-          # Create targets subdirectory and add delegation files
-          mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json
-          
-          # Verify setup
-          echo "Verifying trust setup..."
-          ls -la ~/.docker/trust/private/
-          ls -la ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/
-          
-          echo "✅ Docker Content Trust configured with keys and TUF metadata"
-
-      - name: Pull and push signed image to private registry
-        if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
-        run: |
-          echo "🐳 Pulling and pushing base image to private registry with Content Trust..."
-          
-          # Enable Docker Content Trust with pre-configured keys
-          export DOCKER_CONTENT_TRUST=1
-          export DOCKER_CONTENT_TRUST_ROOT_PASSPHRASE="${{ secrets.DOCKER_TRUST_ROOT_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE="${{ secrets.DOCKER_TRUST_REPO_PASSPHRASE }}"
-          export DOCKER_CONTENT_TRUST_SIGNER_PASSPHRASE="${{ secrets.DOCKER_TRUST_SIGNER_PASSPHRASE }}"
-          
-          # Parse the static labels
-          IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
-          
-          # Pull using the verified linux/amd64 manifest
-          echo "📥 Pulling base image with linux/amd64 manifest..."
-          docker pull ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }}
-          
-          # Tag for private registry
-          echo "🏷️ Tagging for private registry..."
-          docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          
-          # Create a temporary Dockerfile to add labels
-          echo "📋 Adding build metadata via temporary Dockerfile..."
-          cat > /tmp/Dockerfile.labels << 'EOF'
-          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          EOF
-          
-          # Add static labels to Dockerfile
-          for label_pair in "${STATIC_LABELS[@]}"; do
-            label_key=$(echo $label_pair | cut -d':' -f1)
-            label_value=$(echo $label_pair | cut -d':' -f2-)
-            echo "LABEL \"$label_key\"=\"$label_value\"" >> /tmp/Dockerfile.labels
-          done
-          
-          # Add dynamic labels to Dockerfile
-          echo "LABEL \"build.timestamp\"=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> /tmp/Dockerfile.labels
-          echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
-          
-          # Build and push with labels (Content Trust will sign automatically)
-          docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          
-          # Clean up
-          rm /tmp/Dockerfile.labels
-          
-          echo "✅ Base image management completed with full provenance tracking and Content Trust signing"
+            
+            # Add dynamic labels to Dockerfile
+            echo "LABEL \"build.timestamp\"=\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"" >> /tmp/Dockerfile.labels
+            echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
+            
+            # Build and push with labels (Content Trust will sign automatically)
+            docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
+            docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+            
+            # Clean up
+            rm /tmp/Dockerfile.labels
+            
+            echo "✅ Base image management completed with full provenance tracking and Content Trust signing"
     #####
     ###############
   ##############################
