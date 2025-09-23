@@ -33,6 +33,7 @@ COPY --from=builder /app/package.json ./
 
 # Copy Additional relevant files for production
 COPY server.js ./
+COPY test.sh ./
 
 # Change ownership to node user
 RUN chown -R node:node /app
