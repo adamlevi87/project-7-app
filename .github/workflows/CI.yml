@@ -72,6 +72,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
+      ############################## Stage 0: Base Image Management & Supply Chain Security
+      ############### Input Parsing and Validation
+      ##### Parse base image inputs for deterministic builds
+      ##### Extracts base image name and multi-arch manifest digest from input parameters
+      ##### Ensures reproducible builds by pinning to specific image versions
       - name: Parse base image inputs
         id: parse_inputs
         run: |
@@ -81,7 +86,12 @@ jobs:
           echo "base_image_name=${BASE_IMAGE_NAME}" >> $GITHUB_OUTPUT
           echo "base_image_multiarch_digest=${BASE_IMAGE_MULTIARCH_DIGEST}" >> $GITHUB_OUTPUT
           echo "✅ Base image inputs parsed"
+      #####
 
+      ############### Provenance Label Schema Definition
+      ##### Define static labels for build provenance and traceability
+      ##### Creates metadata labels that track source image, manifest digests, and build context
+      ##### Enables supply chain auditing and container forensics
       - name: Define label schema
         id: define_labels
         run: |
@@ -96,7 +106,12 @@ jobs:
           STATIC_LABELS_STRING=$(printf '%s|' "${STATIC_LABELS[@]}")
           echo "static_labels=${STATIC_LABELS_STRING%|}" >> $GITHUB_OUTPUT
           echo "✅ Label schema defined"
+      #####
 
+      ############### Manifest Verification for Supply Chain Security
+      ##### Extract and verify linux/amd64 specific manifest digest
+      ##### Ensures the multi-arch image contains the expected architecture-specific manifest
+      ##### Prevents supply chain attacks through manifest substitution
       - name: Extract and verify linux/amd64 manifest
         id: extract_manifest
         run: |
@@ -110,11 +125,20 @@ jobs:
           fi
           echo "✅ Manifest verification passed"
           echo "manifest_verified=true" >> $GITHUB_OUTPUT
+      #####
 
+      ############### Docker Hub Authentication
+      ##### Authenticate with Docker Hub for private registry access
+      ##### Required for both pulling from and pushing to private repositories
       - name: Login to Docker Hub
         run: |
           echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+      #####
 
+      ############### Private Registry Cache Check
+      ##### Check if image already exists in private registry with matching labels
+      ##### Implements intelligent caching to avoid unnecessary rebuilds and pushes
+      ##### Compares provenance labels to determine if image needs updating
       - name: Check private registry first
         id: check_private
         run: |
@@ -150,7 +174,12 @@ jobs:
             echo "ℹ️ Image not found in private registry - will need to push"
           fi
           echo "needs_push=$NEEDS_PUSH" >> $GITHUB_OUTPUT
+      #####
 
+      ############### Verified Image Pull and Private Registry Push
+      ##### Pull base image with Content Trust verification from public Docker Hub
+      ##### Tag and push to private registry with build metadata labels
+      ##### Implements supply chain security by verifying public images before caching privately
       - name: Pull verified base image and push to private registry
         if: steps.check_private.outputs.needs_push == 'true' && steps.extract_manifest.outputs.manifest_verified == 'true'
         run: |
