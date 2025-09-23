@@ -171,22 +171,28 @@ jobs:
           echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           
-          # Setup TUF metadata
+          # Setup TUF metadata (NO base64 decoding)
           echo "Setting up TUF metadata..."
-          echo "${{ secrets.DOCKER_TRUST_TUF_ROOT }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_ROOT }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json
           
-          # Create targets subdirectory and add delegation files
+          # Create targets subdirectory and add delegation files (NO base64 decoding)
           mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json
           
           # Verify setup
           echo "Verifying trust setup..."
           ls -la ~/.docker/trust/private/
           ls -la ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/
+          
+          echo "=== CURRENT CI TRUST STRUCTURE ==="
+          find ~/.docker/trust -type f -exec ls -la {} \; | sort
+          
+          echo "=== ENVIRONMENT VARIABLES ==="
+          env | grep DOCKER_CONTENT_TRUST || echo "No DCT env vars set"
           
           echo "✅ Docker Content Trust configured with keys and TUF metadata"
 
