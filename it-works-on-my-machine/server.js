@@ -41,28 +41,28 @@ app.get("/disable-health", (req, res) => {
   res.send("Health disabled");
 });
 
-// Graceful termination
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received, shutting down gracefully");
-  server.close(() => {
-    console.log("Process terminated");
-  });
-});
-
-process.on("SIGINT", () => {
-  console.log("SIGINT received, shutting down gracefully"); 
-  server.close(() => {
-    console.log("Process terminated");
-  });
-});
-
 // Export the app for testing
 module.exports = app;
 
 /* istanbul ignore next */
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  app.listen(port, () => {
+  const server = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
+  });
+
+  // Graceful termination
+  process.on("SIGTERM", () => {
+    console.log("SIGTERM received, shutting down gracefully");
+    server.close(() => {
+      console.log("Process terminated");
+    });
+  });
+
+  process.on("SIGINT", () => {
+    console.log("SIGINT received, shutting down gracefully"); 
+    server.close(() => {
+      console.log("Process terminated");
+    });
   });
 }
