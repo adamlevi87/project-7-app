@@ -60,7 +60,7 @@ if (require.main === module) {
   });
 
   process.on("SIGINT", () => {
-    console.log("SIGINT received, shutting down gracefully"); 
+    console.log("SIGINT received, shutting down gracefully");
     server.close(() => {
       console.log("Process terminated");
     });
