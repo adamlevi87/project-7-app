@@ -171,17 +171,33 @@ jobs:
           echo "${{ secrets.DOCKER_TRUST_SIGNER_KEY }}" > ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           chmod 600 ~/.docker/trust/private/${{ secrets.DOCKER_TRUST_SIGNER_KEY_ID }}.key
           
-          # Setup TUF metadata (NO base64 decoding)
+          # Setup TUF metadata using heredoc to avoid escaping issues
           echo "Setting up TUF metadata..."
-          echo "${{ secrets.DOCKER_TRUST_TUF_ROOT }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json
+          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/root.json << 'EOF'
+          ${{ secrets.DOCKER_TRUST_TUF_ROOT }}
+          EOF
           
-          # Create targets subdirectory and add delegation files (NO base64 decoding)
+          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/snapshot.json << 'EOF'
+          ${{ secrets.DOCKER_TRUST_TUF_SNAPSHOT }}
+          EOF
+          
+          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json << 'EOF'
+          ${{ secrets.DOCKER_TRUST_TUF_TARGETS }}
+          EOF
+          
+          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json << 'EOF'
+          ${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}
+          EOF
+          
+          # Create targets subdirectory and add delegation files using heredoc
           mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json
-          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}" > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json
+          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json << 'EOF'
+          ${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}
+          EOF
+          
+          cat > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json << 'EOF'
+          ${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}
+          EOF
           
           # Verify setup
           echo "Verifying trust setup..."
@@ -243,7 +259,7 @@ jobs:
           # Clean up
           rm /tmp/Dockerfile.labels
           
-          echo "✅ Base image management completed with full provenance tracking and Content Trust signing"
+          echo "✅ Base image management completed with full provenance tracking and Content Trust signing"   
     #####
     ###############
   ##############################
