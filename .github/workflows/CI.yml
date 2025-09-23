@@ -677,12 +677,6 @@ jobs:
     #     echo "🛡️ Running Trivy container CVE scan..."
     #     trivy image --severity HIGH,CRITICAL security-scan:ci-${GITHUB_SHA}
 
-    ##### Docker Hub authentication for Scout
-    - name: Login to Docker Hub
-      run: |
-        echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
-    #####
-
     ##### Docker Scout CVE Scan
     - name: Docker Scout CVE scan with grep filtering
       run: |
