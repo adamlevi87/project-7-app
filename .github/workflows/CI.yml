@@ -332,29 +332,35 @@ jobs:
         # Get major version from workflow (node --version gives v18.17.0)
         WORKFLOW_MAJOR=$(node --version | sed 's/v//' | cut -d'.' -f1)
         echo "CI workflow Node version: $WORKFLOW_MAJOR"
-        
-        # Find all Node.js FROM statements in Dockerfile
-        NODE_LINES=$(grep "FROM node:" Dockerfile || true)
-        
+      
+        # Find all Node.js FROM statements (both public and private registry)
+        NODE_LINES=$(grep -E "FROM (node:|.*/node-)" Dockerfile || true)
+      
         if [ -z "$NODE_LINES" ]; then
           echo "No Node.js base images found in Dockerfile"
           exit 1
         fi
-        
+      
         # Track if any mismatches found
         MISMATCH_FOUND=false
-        
+      
         # Check each Node.js FROM line
         while IFS= read -r line; do
           if [ -n "$line" ]; then
             # Extract stage name if present (e.g., "AS builder")
             STAGE_NAME=$(echo "$line" | grep -o 'AS [^ ]*' | cut -d' ' -f2 || echo "main")
-            
-            # Extract Node version from FROM line
-            DOCKERFILE_MAJOR=$(echo "$line" | sed 's/FROM node://' | sed 's/-.*//' | cut -d'.' -f1)
-            
+          
+            # Extract Node version from FROM line (handle both patterns)
+            if [[ "$line" =~ FROM\ node: ]]; then
+              # Public registry: FROM node:18-alpine
+              DOCKERFILE_MAJOR=$(echo "$line" | sed 's/FROM node://' | sed 's/-.*//' | cut -d'.' -f1)
+            else
+              # Private registry: FROM adamlevi87/node-18-buster-slim-latest
+              DOCKERFILE_MAJOR=$(echo "$line" | sed 's/.*node-//' | cut -d'-' -f1)
+            fi
+          
             echo "Dockerfile stage '$STAGE_NAME': Node version $DOCKERFILE_MAJOR"
-            
+          
             if [[ "$DOCKERFILE_MAJOR" != "$WORKFLOW_MAJOR" ]]; then
               echo "❌ Node major version mismatch in stage '$STAGE_NAME':"
               echo "   Dockerfile: $DOCKERFILE_MAJOR"
@@ -365,13 +371,13 @@ jobs:
             fi
           fi
         done <<< "$NODE_LINES"
-        
+      
         if [ "$MISMATCH_FOUND" = true ]; then
           echo ""
           echo "💥 Node version validation failed!"
           exit 1
         fi
-        
+      
         echo ""
         echo "✅ All Node versions are consistent across stages"
 
