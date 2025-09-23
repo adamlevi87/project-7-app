@@ -16,20 +16,20 @@ on:
       base_image_with_digest:
         description: 'Base image with multi-arch manifest digest'
         required: false
-        default: 'node:18-buster-slim@sha256:8ddce69c50b5e3c2e7abc611f30d76747b1baa1f8b1e442cfb5f7a4ac8ee798b'
+        default: 'node:18-alpine@sha256:8d6421d663b4c28fd3ebc498332f249011d118945588d0a35cb9bc4b8ca09d9e'
         type: string
       base_image_manifest:
-        description: 'SHA256 of base image to pin'
+        description: 'SHA256 of base image manifest to pin'
         required: false
-        default: 'sha256:6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3'
+        default: 'sha256:929b04d7c782f04f615cf785488fed452b6569f87c73ff666ad553a7554f0006'
         # this is a manifest ID (a specific OS/Arch on top of the specific node version/ specific distro & version)
-        # https://hub.docker.com/layers/library/node/18-buster-slim/images/sha256-6f8e95d2cc7d5322b6d82a2d92ccc9e2f34ab12e5b0ffaafecacbead39ccc1d3
-        # Image Details: linux/amd64, buster-slim v10.13, node v18.20.3
+        # https://hub.docker.com/layers/library/node/18-alpine/images/sha256:929b04d7c782f04f615cf785488fed452b6569f87c73ff666ad553a7554f0006
+        # Image Details: linux/amd64, alpine v3.21.3, node v18.20.8, npm v10.8.2
         type: string
       private_image_name:
         description: 'Private registry image name'
         required: false
-        default: 'node-18-buster-slim-current'
+        default: 'node-18-alpine-current'
         type: string
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'

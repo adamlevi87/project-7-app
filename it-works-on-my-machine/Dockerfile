@@ -1,5 +1,8 @@
 ########## Stage 1: Build stage
-FROM node:18-alpine AS builder
+FROM adamlevi87/node-18-alpine-current AS builder
+
+# dumb init
+RUN apk update && apk add dumb-init
 
 # Workdir
 WORKDIR /app
@@ -12,24 +15,17 @@ COPY package-lock.json ./
 RUN npm ci --omit=dev && rm -rf /root/.npm
 
 
-########## Stage 1.5: dumb stage  
-FROM adamlevi87/node-18-buster-slim-current AS dumb
-
-# Install dumb-init
-RUN apt-get update && apt-get install -y --no-install-recommends dumb-init && rm -rf /var/lib/apt/lists/*
-
-
 ########## Stage 2: Runtime stage  
-FROM adamlevi87/node-18-buster-slim-current AS runtime
+FROM adamlevi87/node-18-alpine-current AS runtime
 
 # Workdir
 WORKDIR /app
 
 # Set ENV mode for NODE
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 # Copy from build stage - dump init
-COPY --from=dumb /usr/bin/dumb-init /usr/bin/dumb-init
+COPY --from=builder /usr/bin/dumb-init /usr/bin/dumb-init
 
 # Copy only what's needed for runtime
 COPY --from=builder /app/node_modules ./node_modules
