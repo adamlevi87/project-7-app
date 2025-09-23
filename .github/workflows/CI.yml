@@ -178,6 +178,11 @@ jobs:
           echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets.json
           echo "${{ secrets.DOCKER_TRUST_TUF_TIMESTAMP }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/timestamp.json
           
+          # Create targets subdirectory and add delegation files
+          mkdir -p ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets
+          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_ADAMLEVI87 }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/adamlevi87.json
+          echo "${{ secrets.DOCKER_TRUST_TUF_TARGETS_RELEASES }}" | base64 -d > ~/.docker/trust/tuf/docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/node/metadata/targets/releases.json
+          
           # Verify setup
           echo "Verifying trust setup..."
           ls -la ~/.docker/trust/private/
