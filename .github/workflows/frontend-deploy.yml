@@ -1,0 +1,334 @@
+# .github/workflows/frontend-deploy.yml
+
+name: Frontend - Build and Deploy to ECR
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment to manage"
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: "Action to perform"
+        required: true
+        default: build-and-push
+        type: choice
+        options:
+          - build-and-push
+          - update-digest-only
+          - force-rebuild
+      auto_merge:
+        description: "Auto-merge the GitOps PR"
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/frontend
+    permissions:
+      contents: read
+      id-token: write  # Required for OIDC
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for change detection
+      
+      - name: Set environment variables
+        run: |
+          case "${{ github.event.inputs.env }}" in
+            dev)
+              echo "AWS_REGION=${{ vars.AWS_REGION_TF_DEV }}" >> $GITHUB_ENV
+              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_DEV }}" >> $GITHUB_ENV
+              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_DEV }}" >> $GITHUB_ENV
+              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_DEV }}" >> $GITHUB_ENV
+              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_DEV }}" >> $GITHUB_ENV
+              ;;
+            staging)
+              echo "AWS_REGION=${{ vars.AWS_REGION_TF_STAGING }}" >> $GITHUB_ENV
+              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_STAGING }}" >> $GITHUB_ENV
+              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_STAGING }}" >> $GITHUB_ENV
+              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_STAGING }}" >> $GITHUB_ENV
+              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_STAGING }}" >> $GITHUB_ENV
+              ;;
+            prod)
+              echo "AWS_REGION=${{ vars.AWS_REGION_TF_PROD }}" >> $GITHUB_ENV
+              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_PROD }}" >> $GITHUB_ENV
+              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_PROD }}" >> $GITHUB_ENV
+              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_PROD }}" >> $GITHUB_ENV
+              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_PROD }}" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Determine build strategy
+        id: build-strategy
+        run: |
+          if [ "${{ github.event.inputs.action }}" == "force-rebuild" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "should_compare_digest=false" >> $GITHUB_OUTPUT
+            echo "strategy=force" >> $GITHUB_OUTPUT
+            echo "🔨 Force rebuild - will build and push regardless"
+          elif [ "${{ github.event.inputs.action }}" == "update-digest-only" ]; then
+            echo "should_build=false" >> $GITHUB_OUTPUT
+            echo "should_compare_digest=true" >> $GITHUB_OUTPUT
+            echo "strategy=digest-only" >> $GITHUB_OUTPUT
+            echo "📦 Update digest only - skipping build entirely"
+          elif [ "${{ github.event.inputs.action }}" == "build-and-push" ]; then
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            echo "should_compare_digest=true" >> $GITHUB_OUTPUT
+            echo "strategy=smart" >> $GITHUB_OUTPUT
+            echo "🧠 Smart build - will build, compare, and conditionally push"
+          else
+            echo "🧠 Smart build - will do nothing"
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        id: meta
+        run: |
+          SHA_SHORT=$(echo $GITHUB_SHA | cut -c1-7)
+          TAG="${{ github.run_id }}-${SHA_SHORT}"
+          IMAGE_BASE="${{ env.ECR_REPOSITORY_FRONTEND }}"
+          IMAGE_URI="${IMAGE_BASE}:${TAG}"
+          
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+
+          #echo "image_base=$IMAGE_BASE" >> $GITHUB_OUTPUT
+          #echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
+      
+      # Step 1: Calculate content hash
+      - name: Get content hash
+        id: content-hash
+        run: |
+          CONTENT_HASH=$(find . -type f -exec sha256sum {} \; | sort | sha256sum | cut -d' ' -f1)
+          echo "content_hash=$CONTENT_HASH" >> $GITHUB_OUTPUT
+          echo "📝 Content hash: $CONTENT_HASH"
+
+      # Step 2: Get content hash from latest ECR image
+      - name: Check if content exists in ECR
+        if: ${{ steps.build-strategy.outputs.should_compare_digest == 'true' }}
+        id: ecr-check
+        run: |
+          CONTENT_TAG="content-${{ steps.content-hash.outputs.content_hash }}"
+          echo "content_tag=$CONTENT_TAG" >> $GITHUB_OUTPUT
+          
+          LATEST_IMAGE=$(aws ecr describe-images \
+            --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
+            --region ${{ env.AWS_REGION }} \
+            --query 'sort_by(imageDetails,&imagePushedAt)[-1]' \
+            --output json 2>/dev/null || echo "{}")
+        
+          if [ "$LATEST_IMAGE" == "{}" ] && [ "${{ github.event.inputs.action }}" == "update-digest-only" ]; then
+            echo "❌ ERROR: update-digest-only requires existing images in ECR"
+            exit 1
+          fi
+          
+          LATEST_TAGS=$(echo "$LATEST_IMAGE" | jq -r '.imageTags // []')
+          LATEST_DIGEST=$(echo "$LATEST_IMAGE" | jq -r '.imageDigest // ""')
+          echo "existing_digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
+
+          # Check if our content tag exists in latest image
+          if echo "$LATEST_TAGS" | jq -e --arg tag "$CONTENT_TAG" 'index($tag)' >/dev/null; then
+            echo "content_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Content tag found: $CONTENT_TAG"
+            echo "We will NOT be pushing it to the ecr"
+          else
+            echo "content_exists=false" >> $GITHUB_OUTPUT
+            echo "🆕 Content tag not found: $CONTENT_TAG"
+            echo "We will be pushing it to the ecr"
+          fi
+
+      # Step 3: Build with content hash
+      - name: Build Docker image
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        run: |
+          docker build -t ${{ steps.meta.outputs.image_uri }} .
+          echo "✅ Image built"
+
+      - name: Compare content and decide to push
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        id: push-decision
+        run: |
+          if [ "${{ steps.build-strategy.outputs.strategy }}" == "force" ]; then
+            echo "should_push=true" >> $GITHUB_OUTPUT
+            echo "🔨 Force push requested"
+          elif [ "${{ steps.ecr-check.outputs.content_exists }}" == "false" ]; then
+            echo "should_push=true" >> $GITHUB_OUTPUT
+            echo "🆕 Content not in ECR - pushing new content"
+          else
+            echo "should_push=false" >> $GITHUB_OUTPUT
+            echo "✅ Content unchanged - already exists in ECR, skipping push"
+          fi
+
+      - name: Push Docker image to ECR
+        if: ${{ steps.push-decision.outputs.should_push == 'true' }}
+        run: |
+          echo "🚀 Pushing image to ECR..."
+          docker push ${{ steps.meta.outputs.image_uri }}
+
+          CONTENT_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:${{ steps.ecr-check.outputs.content_tag }}"
+          docker tag ${{ steps.meta.outputs.image_uri }} $CONTENT_TAG_FULL
+          docker push $CONTENT_TAG_FULL
+          
+          echo "✅ Image pushed successfully"
+          echo "✅ Content tag created: content-${{ steps.ecr-check.outputs.content_tag }}"
+
+      - name: Capture final image digest
+        id: final-digest
+        run: |
+          if [ "${{ steps.push-decision.outputs.should_push }}" == "true" ]; then
+            # Get digest from newly pushed image
+            NEW_DIGEST=$(aws ecr describe-images \
+              --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
+              --region ${{ env.AWS_REGION }} \
+              --image-ids imageTag=${{ steps.meta.outputs.tag }} \
+              --query 'imageDetails[0].imageDigest' \
+              --output text)
+            echo "digest_only=$NEW_DIGEST" >> $GITHUB_OUTPUT
+            echo "✅ New image digest: $NEW_DIGEST"
+          else
+            # Use the existing latest digest (covers both digest-only and no-push scenarios)
+            echo "digest_only=${{ steps.ecr-check.outputs.existing_digest }}" >> $GITHUB_OUTPUT
+            echo "♻️ Using existing digest: ${{ steps.ecr-check.outputs.existing_digest }}"
+          fi
+
+      - name: Check if digest changed in GitOps
+        id: check-gitops-changes
+        env:
+          GH_TOKEN: "${{ env.GH_TOKEN }}"
+          GITOPS_REPO: ${{ env.GITOPS_REPO }}
+          ENVIRONMENT: ${{ github.event.inputs.env }}
+          # TARGET_DIGEST is the digest from this workflow
+          # it will be the latest digest from the ECR, if a push was made or not
+          # this needs to be compared to the digest in GitOps
+          TARGET_DIGEST: ${{ steps.final-digest.outputs.digest_only }}
+        run: |
+          rm -rf gitops-repo
+          git clone https://x-access-token:${GH_TOKEN}@github.com/${GITOPS_REPO}.git gitops-repo
+          cd gitops-repo
+          
+          GITOPS_DIGEST=$(grep 'digest:' environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml | sed 's/.*digest: "\(.*\)"/\1/')
+          
+          if [ "$GITOPS_DIGEST" == "$TARGET_DIGEST" ]; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "✅ GitOps digest unchanged: gitops: $GITOPS_DIGEST vs $TARGET_DIGEST"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "🔄 GitOps digest will change: digest to be replace: $GITOPS_DIGEST → digest to be replaced by: $TARGET_DIGEST"
+          fi
+
+      - name: Update GitOps repository
+        if: ${{ steps.check-gitops-changes.outputs.changed == 'true' }}
+        id: create-pr
+        env:
+          GH_TOKEN: "${{ env.GH_TOKEN }}"
+          GITOPS_REPO: ${{ env.GITOPS_REPO }}
+          ENVIRONMENT: ${{ github.event.inputs.env }}
+          TARGET_DIGEST: ${{ steps.final-digest.outputs.digest_only }}
+        run: |
+          cd gitops-repo
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          
+          BRANCH_NAME="frontend-update-$(date +%Y%m%d-%H%M%S)"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          
+          git checkout -b "$BRANCH_NAME"
+          
+          sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml
+          git add environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml
+          git commit -m "Update frontend digest for ${ENVIRONMENT}: ${TARGET_DIGEST}"
+          git push origin "$BRANCH_NAME"
+          
+          # Create PR and capture response
+          PR_RESPONSE=$(curl -s -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${GITOPS_REPO}/pulls" \
+            -d "{\"title\":\"Frontend: Update ${ENVIRONMENT} digest\",\"head\":\"${BRANCH_NAME}\",\"base\":\"main\",\"body\":\"Automated digest update for ${ENVIRONMENT} environment\"}")
+          
+          # Extract PR number
+          PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number')
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          
+          if [ "$PR_NUMBER" != "null" ] && [ -n "$PR_NUMBER" ]; then
+            echo "✅ Created PR #${PR_NUMBER}"
+          else
+            echo "❌ Failed to create PR. Response: $PR_RESPONSE"
+            exit 1
+          fi
+      
+      - name: Auto-merge GitOps PR
+        if: ${{ steps.check-gitops-changes.outputs.changed == 'true' && github.event.inputs.auto_merge == 'true' }}
+        env:
+          GH_TOKEN: "${{ env.GH_TOKEN }}"
+          GITOPS_REPO: ${{ env.GITOPS_REPO }}
+        run: |
+          PR_NUMBER="${{ steps.create-pr.outputs.pr_number }}"
+          
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "🔀 Triggering auto-merge for PR #${PR_NUMBER}..."
+            
+            curl -X POST \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITOPS_REPO}/dispatches" \
+              -d "{\"event_type\":\"auto-merge-pr\",\"client_payload\":{\"pr_number\":${PR_NUMBER}}}"
+            
+            echo "✅ Auto-merge workflow triggered for PR #${PR_NUMBER}"
+          else
+            echo "❌ No PR found to auto-merge"
+          fi
+      
+      - name: Build Summary
+        run: |
+          echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.env }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Strategy:** ${{ steps.build-strategy.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          
+          # ECR Digest Prior to the changes
+          # no condition, if there are no digest the job fails anyway
+          echo "- **ECR Digest Prior to the changes:** ${{ steps.ecr-check.outputs.existing_digest }}" >> $GITHUB_STEP_SUMMARY
+          
+          # If there were changes (meaning push = true)-> print the new digest which is the final digest
+          if [ "${{ steps.push-decision.outputs.should_push }}" == "true" ]; then
+            echo "- **ECR Digest after the changes:** ${{ steps.final-digest.outputs.digest_only }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "- **Content Tag:** ${{ steps.ecr-check.outputs.content_tag }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.build-strategy.outputs.should_build }}" == "true" ]; then
+            echo "- **Built Image:** ${{ steps.meta.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+            #echo "- **Local content-hash:** ${{ steps.content-hash.outputs.content_hash }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Pushed to ECR:** ${{ steps.push-decision.outputs.should_push }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "- **GitOps Changed:** ${{ steps.check-gitops-changes.outputs.changed }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check-gitops-changes.outputs.changed }}" == "true" ]; then
+            echo "- **PR Created:** #${{ steps.create-pr.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Auto-merge:** ${{ github.event.inputs.auto_merge }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Result:** No changes needed - everything up to date ✅" >> $GITHUB_STEP_SUMMARY
+          fi

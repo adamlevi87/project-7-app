@@ -1,0 +1,99 @@
+# .github/workflows/auto-build-on-push.yml
+
+name: Auto Build on Code Changes
+
+on:
+  push:
+    branches: 
+      - main
+      - develop
+    paths:
+      - 'app/**'
+      #- 'helm/**'
+      - 'Dockerfile'
+  
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      #- 'helm/**'
+      - 'Dockerfile'
+
+  repository_dispatch:
+    types: [terraform-infrastructure-ready]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  auto-build:
+    runs-on: ubuntu-latest
+    # Only run on pushes to main or when PR is merged to main
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'repository_dispatch')
+    
+    steps:
+      - name: Determine environment and action
+        id: config
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            # Triggered by Terraform
+            ENV="${{ github.event.client_payload.environment }}"
+            ACTION="build-and-push"
+            REASON="terraform-infrastructure-ready"
+          else
+            # Triggered by code changes
+            ENV="dev"  # Default to dev for auto-builds
+            ACTION="build-and-push"
+            REASON="code-changes"
+          fi
+          
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "action=$ACTION" >> $GITHUB_OUTPUT
+          echo "reason=$REASON" >> $GITHUB_OUTPUT
+          
+          echo "🚀 Auto-build triggered by: $REASON"
+          echo "📦 Building for environment: $ENV"
+
+      - name: Trigger Frontend Deploy Workflow  
+        run: |
+          echo "Triggering frontend-deploy.yml workflow..."
+          
+          RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/frontend-deploy.yml/dispatches" \
+            -d '{
+              "ref": "main",
+              "inputs": {
+                "env": "${{ steps.config.outputs.environment }}",
+                "action": "${{ steps.config.outputs.action }}",
+                "auto_merge": "true"
+              }
+            }')
+          
+          HTTP_CODE=$(echo "$RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_CODE:/d')
+          
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Response Body: $BODY"
+          
+          if [ "$HTTP_CODE" -eq 204 ]; then
+            echo "✅ Workflow triggered successfully"
+          else
+            echo "❌ Failed to trigger workflow"
+            echo "Response: $BODY"
+            exit 1
+          fi
+
+      - name: Build Summary
+        run: |
+          echo "✅ Auto-build completed"
+          echo "Trigger: ${{ steps.config.outputs.reason }}"
+          echo "Environment: ${{ steps.config.outputs.environment }}"
+          echo "Action: ${{ steps.config.outputs.action }}"

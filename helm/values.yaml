@@ -1,0 +1,59 @@
+# template value file
+
+image:
+  repository: ""        # Should be overridden by env-specific file
+  digest: ""            # Should be overridden by an automation
+  tag: ""               # Optional: could default to "latest"
+  pullPolicy: IfNotPresent
+
+namespace: 
+  name: ""          # Can be overridden
+  create: false     # Can be overridden
+
+service:
+  type: null            # Must be overridden
+  port: null            # Must be overridden
+
+serviceAccount:
+  create: false
+  name: ""
+
+containerPort: null     # Must be overridden
+
+ingress:
+  enabled: true
+  host: ""              # Must be overridden
+  ingressControllerClassResourceName: "" # Must be overridden
+  annotations: {}       # Must be overridden
+
+replicaCount: null      # Must be overridden
+
+# HPA Configuration
+autoscaling:
+  enabled: null         # Must be overridden
+  minReplicas: null     # Must be overridden
+  maxReplicas: null     # Must be overridden
+  targetCPUUtilizationPercentage: null # Must be overridden
+  # targetMemoryUtilizationPercentage: 80  # Optional
+
+# Resource requests/limits for HPA to work
+resources:
+  requests:
+    cpu: null           # Must be overridden
+    memory: null        # Must be overridden
+  limits:
+    cpu: null           # Must be overridden
+    memory: null        # Must be overridden
+
+# External Secrets  
+externalSecrets:
+  enabled: false
+  secretStoreRef:
+    name: aws-secretsmanager
+    kind: ClusterSecretStore
+  remoteKey: /project/backend/env
+  targetSecretName: backend-env
+
+# Add this section to values.yaml
+secretStore:
+  enabled: false          # Default to disabled
