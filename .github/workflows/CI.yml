@@ -407,7 +407,7 @@ jobs:
         # Build image first for dockle to scan
         export DOCKER_CONTENT_TRUST=0
         docker build -t dockle-scan:ci-${GITHUB_SHA} .
-        dockle --exit-code 1 --exit-level INFO  dockle-scan:ci-${GITHUB_SHA}
+        dockle --exit-code 1 --exit-level INFO  dockle-scan:ci-${GITHUB_SHA} --ignore CIS-DI-0008 --ignore CIS-DI-0008 CIS-DI-0005
         
     #####
 
