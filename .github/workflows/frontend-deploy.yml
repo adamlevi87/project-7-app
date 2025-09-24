@@ -196,12 +196,13 @@ jobs:
           IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
           IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
           EOF
+          ls -la debug-vars.txt
 
       - name: Upload debug artifact
         uses: actions/upload-artifact@v4
         with:
           name: debug-vars-${{ github.run_id }}
-          path: debug-vars.txt
+          path: it-works-on-my-machine/debug-vars.txt
 
       - name: Push Docker image to ECR
         if: ${{ steps.push-decision.outputs.should_push == 'true' }}
