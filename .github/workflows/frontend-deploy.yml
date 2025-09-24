@@ -382,16 +382,16 @@ jobs:
           cosign attest --yes \
             --predicate sbom.spdx.json \
             --type spdx \
-            --attachment-tag-prefix="sha256-${{ steps.final-digest.outputs.digest_only }}-SBOM" \
-              ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+            --attachment-tag-prefix="$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')-SBOM" \
+            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ SBOM attestation attached"
-          
+
           echo "📎 Attaching provenance attestation..."
           cosign attest --yes \
             --predicate provenance.json \
             --type slsaprovenance \
-            --attachment-tag-prefix="sha256-${{ steps.final-digest.outputs.digest_only }}-PROVENANCE" \
-              ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+            --attachment-tag-prefix="$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')-PROVENANCE" \
+            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ Provenance attestation attached"
 
       - name: Check if digest changed in GitOps
