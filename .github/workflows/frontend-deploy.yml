@@ -255,9 +255,9 @@ jobs:
             echo "digest_only=${{ steps.ecr-check.outputs.existing_digest }}" >> $GITHUB_OUTPUT
             echo "♻️ Using existing digest: ${{ steps.ecr-check.outputs.existing_digest }}"
           fi
-          
+
       - name: Tag image with digest identifier
-        if: ${{ steps.push-decision.outputs.should_push == 'true' }}
+        if: ${{ steps.final-digest.outputs.digest_only != '' }}
         run: |
           DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
           docker tag ${{ steps.meta.outputs.image_uri }} ${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG
