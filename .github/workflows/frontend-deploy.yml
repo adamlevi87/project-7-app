@@ -376,29 +376,36 @@ jobs:
         with:
           cosign-release: 'v2.2.2'
 
-      - name: Sign container image and attach SBOM
+      - name: Sign container image and attach attestations
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
         run: |
-          echo "Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
+          echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
           
           # Try to verify signature exists
           if cosign verify \
             --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
             --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} 2>/dev/null; then
-            echo "Signature already exists"
+            echo "✅ Signature already exists"
           else
-            echo "No signature found - signing now..."
+            echo "🔑 No signature found - signing now..."
             cosign sign --yes ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-            echo "Image signed successfully"
+            echo "✅ Image signed successfully"
           fi
           
-          echo "Attaching SBOM attestation..."
+          echo "📎 Attaching SBOM attestation..."
           cosign attest --yes \
             --predicate sbom.spdx.json \
             --type spdx \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-          echo "SBOM attestation attached"
+          echo "✅ SBOM attestation attached"
+          
+          echo "📎 Attaching provenance attestation..."
+          cosign attest --yes \
+            --predicate provenance.json \
+            --type slsaprovenance \
+            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+          echo "✅ Provenance attestation attached"
 
       
       
