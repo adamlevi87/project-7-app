@@ -179,14 +179,14 @@ jobs:
 
       ##### Required for both pulling from and pushing to private repositories
       - name: Login to Docker Hub
-        if: ${{ steps.push-decision.outputs.should_build == 'true' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
       #####
 
       # Build with content hash
       - name: Build Docker image
-        if: ${{ steps.push-decision.outputs.should_build == 'true' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           docker build -t ${{ steps.meta.outputs.image_uri }} .
           echo "✅ Image built"
@@ -263,7 +263,7 @@ jobs:
         run: |
           DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
           DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
-          docker tag ${{ steps.meta.outputs.image_uri }} DIGEST_TAG_FULL
+          docker tag ${{ steps.meta.outputs.image_uri }} $DIGEST_TAG_FULL
           docker push $DIGEST_TAG_FULL
           echo "✅ Image pushed successfully"
           echo "✅ Created digest-based tag: $DIGEST_TAG"
