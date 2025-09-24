@@ -255,7 +255,8 @@ jobs:
         if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "🏷️ Checking and adding additional tags..."
-          
+          CHANGES_MADE=false
+
           # Function to check and add tag if missing
           check_and_add_tag() {
             local tag_name="$1"
@@ -273,6 +274,7 @@ jobs:
               docker tag ${{ steps.meta.outputs.image_uri }} "$tag_full"
               docker push "$tag_full"
               echo "✅ Created tag: $tag_name"
+              CHANGES_MADE=true
             else
               echo "✅ Tag already exists: $tag_name"
             fi
@@ -290,17 +292,24 @@ jobs:
           DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
           check_and_add_tag "$DIGEST_TAG" "$DIGEST_TAG_FULL"
           
-          echo "🏷️ Additional tagging complete"
+          echo "changes_made=$CHANGES_MADE" >> $GITHUB_OUTPUT
+          
+          if [ "$CHANGES_MADE" = "true" ]; then
+            echo "🔄 Changes made - new tags were added"
+          else
+            echo "✅ No changes needed - all tags already exist"
+          fi
+          
 
       - name: Install Syft for SBOM generation
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         run: |
           echo "Installing Syft for SBOM generation..."
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
           syft --version
 
       - name: Generate Software Bill of Materials
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         run: |
           echo "Generating Software Bill of Materials (SBOM)..."
           
@@ -315,7 +324,7 @@ jobs:
           head -10 sbom.txt
 
       - name: Upload SBOM artifacts
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sbom-reports-${{ github.sha }}
@@ -323,7 +332,7 @@ jobs:
             it-works-on-my-machine/sbom.*
       
       - name: Generate build provenance
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         run: |
           echo "Generating build provenance..."
           
@@ -373,20 +382,20 @@ jobs:
           cat provenance.json
 
       - name: Upload provenance
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: provenance-${{ github.sha }}
           path: it-works-on-my-machine/provenance.json
 
       - name: Install Cosign
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         uses: sigstore/cosign-installer@v3
         with:
           cosign-release: 'v2.6.0'
 
       - name: Sign container image and attach attestations
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
         run: |
           echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
           
