@@ -375,7 +375,7 @@ jobs:
           else
             echo "🔑 No signature found - signing now..."
             cosign sign --yes \
-              --attachment-tag-prefix="signature" \
+              --attachment-tag-prefix="SIGNATURE-" \
               ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
             echo "✅ Image signed successfully"
           fi
@@ -383,7 +383,7 @@ jobs:
           echo "📎 Attaching SBOM attestation..."
           cosign attest --yes \
             --predicate sbom.spdx.json \
-            --attachment-tag-prefix="SBOM" \
+            --attachment-tag-prefix="SBOM-" \
             --type spdx \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ SBOM attestation attached"
@@ -391,7 +391,7 @@ jobs:
           echo "📎 Attaching provenance attestation..."
           cosign attest --yes \
             --predicate provenance.json \
-            --attachment-tag-prefix="PROVENANCE" \
+            --attachment-tag-prefix="PROVENANCE-" \
             --type slsaprovenance \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ Provenance attestation attached"
