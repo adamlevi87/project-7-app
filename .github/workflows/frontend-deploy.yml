@@ -252,7 +252,7 @@ jobs:
           docker push $CONTENT_TAG_FULL
           
           echo "✅ Image pushed successfully"
-          echo "✅ Content tag created: content-${{ steps.content-hash.outputs.content_tag }}"
+          echo "✅ Content tag created: ${{ steps.content-hash.outputs.content_tag }}"
 
       - name: Capture final image digest
         id: final-digest
