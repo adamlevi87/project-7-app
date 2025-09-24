@@ -191,16 +191,16 @@ jobs:
           docker build -t ${{ steps.meta.outputs.image_uri }} .
           echo "✅ Image built"
 
-      # - name: Debug build variables  
-      #   run: |
-      #     cat > debug-vars.txt << EOF
-      #     GITHUB_SHA: ${{ github.sha }}
-      #     GITHUB_RUN_ID: ${{ github.run_id }}
-      #     TAG: ${{ steps.meta.outputs.tag }}
-      #     IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
-      #     IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
-      #     EOF
-      #     ls -la debug-vars.txt
+      - name: Debug build variables  
+        run: |
+          cat > debug-vars.txt << EOF
+          #GITHUB_SHA: ${{ github.sha }}
+          #GITHUB_RUN_ID: ${{ github.run_id }}
+          #TAG: ${{ steps.meta.outputs.tag }}
+          IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
+          #IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
+          EOF
+          ls -la debug-vars.txt
 
       # - name: Upload debug artifact
       #   uses: actions/upload-artifact@v4
