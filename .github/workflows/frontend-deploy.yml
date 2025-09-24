@@ -299,29 +299,82 @@ jobs:
           name: sbom-reports-${{ github.sha }}
           path: |
             it-works-on-my-machine/sbom.*
-            
+      
+      - name: Generate build provenance
+        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        run: |
+          echo "Generating build provenance..."
+          
+          cat > provenance.json << EOF
+          {
+            "_type": "https://in-toto.io/Statement/v0.1",
+            "predicateType": "https://slsa.dev/provenance/v0.2",
+            "subject": [
+              {
+                "name": "${{ env.ECR_REPOSITORY_FRONTEND }}",
+                "digest": {
+                  "sha256": "$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
+                }
+              }
+            ],
+            "predicate": {
+              "builder": {
+                "id": "https://github.com/actions/runner"
+              },
+              "buildType": "https://github.com/actions/workflow",
+              "invocation": {
+                "configSource": {
+                  "uri": "https://github.com/${{ github.repository }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  },
+                  "entryPoint": ".github/workflows/frontend-deploy.yml"
+                },
+                "parameters": {
+                  "branch": "${{ github.ref_name }}",
+                  "commit": "${{ github.sha }}",
+                  "workflow": "${{ github.workflow }}",
+                  "environment": "${{ github.event.inputs.env }}"
+                }
+              },
+              "metadata": {
+                "buildInvocationId": "${{ github.run_id }}",
+                "buildStartedOn": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+                "completeness": {
+                  "parameters": true,
+                  "environment": true,
+                  "materials": true
+                },
+                "reproducible": false
+              },
+              "materials": [
+                {
+                  "uri": "https://github.com/${{ github.repository }}",
+                  "digest": {
+                    "sha1": "${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+          }
+          EOF
+          
+          echo "Build provenance generated"
+          echo "Provenance summary:"
+          cat provenance.json | jq '.predicate.metadata'
+
+      - name: Upload provenance
+        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: provenance-${{ github.sha }}
+          path: it-works-on-my-machine/provenance.json
+
       - name: Install Cosign
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
         uses: sigstore/cosign-installer@v3
         with:
           cosign-release: 'v2.2.2'
-
-      # - name: Check and ensure image signature
-      #   if: ${{ steps.final-digest.outputs.digest_only != '' }}
-      #   run: |
-      #     echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
-          
-      #     # Try to verify signature exists (will fail silently if not found)
-      #     if cosign verify \
-      #       --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
-      #       --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-      #       ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} 2>/dev/null; then
-      #       echo "✅ Signature already exists"
-      #     else
-      #       echo "🔑 No signature found - signing now..."
-      #       cosign sign --yes ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-      #       echo "✅ Image signed successfully"
-      #     fi
 
       - name: Sign container image and attach SBOM
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
