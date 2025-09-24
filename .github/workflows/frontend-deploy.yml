@@ -27,6 +27,11 @@ on:
         required: false
         default: true
         type: boolean
+      force_cosign:
+        description: "Force cosign operations even if no changes detected"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-and-deploy:
@@ -303,14 +308,14 @@ jobs:
           
 
       - name: Install Syft for SBOM generation
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         run: |
           echo "Installing Syft for SBOM generation..."
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
           syft --version
 
       - name: Generate Software Bill of Materials
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         run: |
           echo "Generating Software Bill of Materials (SBOM)..."
           
@@ -325,7 +330,7 @@ jobs:
           head -10 sbom.txt
 
       - name: Upload SBOM artifacts
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sbom-reports-${{ github.sha }}
@@ -333,7 +338,7 @@ jobs:
             it-works-on-my-machine/sbom.*
       
       - name: Generate build provenance
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         run: |
           echo "Generating build provenance..."
           
@@ -383,20 +388,20 @@ jobs:
           cat provenance.json
 
       - name: Upload provenance
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: provenance-${{ github.sha }}
           path: it-works-on-my-machine/provenance.json
 
       - name: Install Cosign
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         uses: sigstore/cosign-installer@v3
         with:
           cosign-release: 'v2.6.0'
 
       - name: Sign container image and attach attestations
-        if: ${{ steps.additional-tags.outputs.changes_made == 'true' }}
+        if: ${{ steps.additional-tags.outputs.changes_made == 'true' || github.event.inputs.force_cosign == 'true' }}
         run: |
           echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
           
