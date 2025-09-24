@@ -259,26 +259,24 @@ jobs:
           fi
 
       - name: Tag image with digest identifier
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
-          # Always pull the image by digest to ensure we have it locally for tagging
-          docker pull ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-          
           DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
           DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
-          docker tag ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} $DIGEST_TAG_FULL
+          docker tag ${{ steps.meta.outputs.image_uri }} DIGEST_TAG_FULL
           docker push $DIGEST_TAG_FULL
-          echo "Created digest-based tag: $DIGEST_TAG"
-          
+          echo "✅ Image pushed successfully"
+          echo "✅ Created digest-based tag: $DIGEST_TAG"
+
       - name: Install Syft for SBOM generation
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "Installing Syft for SBOM generation..."
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
           syft --version
 
       - name: Generate Software Bill of Materials
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "Generating Software Bill of Materials (SBOM)..."
           
@@ -293,7 +291,7 @@ jobs:
           head -10 sbom.txt
 
       - name: Upload SBOM artifacts
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: sbom-reports-${{ github.sha }}
@@ -301,7 +299,7 @@ jobs:
             it-works-on-my-machine/sbom.*
       
       - name: Generate build provenance
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "Generating build provenance..."
           
@@ -351,20 +349,20 @@ jobs:
           cat provenance.json
 
       - name: Upload provenance
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: provenance-${{ github.sha }}
           path: it-works-on-my-machine/provenance.json
 
       - name: Install Cosign
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         uses: sigstore/cosign-installer@v3
         with:
           cosign-release: 'v2.6.0'
 
       - name: Sign container image and attach attestations
-        if: ${{ steps.final-digest.outputs.digest_only != '' }}
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
           
