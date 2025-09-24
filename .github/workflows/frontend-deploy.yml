@@ -203,7 +203,12 @@ jobs:
         with:
           name: debug-vars-${{ github.run_id }}
           path: it-works-on-my-machine/debug-vars.txt
-
+      - name: Debug content tag
+        if: ${{ steps.push-decision.outputs.should_push == 'true' }}
+        run: |
+          echo "Content tag: '${{ steps.ecr-check.outputs.content_tag }}'"
+          echo "Full content tag: '${{ env.ECR_REPOSITORY_FRONTEND }}:${{ steps.ecr-check.outputs.content_tag }}'"
+          
       - name: Push Docker image to ECR (with debug)
         if: ${{ steps.push-decision.outputs.should_push == 'true' }}
         run: |
