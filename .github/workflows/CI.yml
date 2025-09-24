@@ -1217,6 +1217,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: stage5-performance-compliance
     if: ${{ inputs.skip_stage6 != true && !failure() }}
+    permissions:
+      actions: write
+      contents: read
 
     steps:
       - name: Trigger Frontend Deploy Workflow
