@@ -252,6 +252,7 @@ jobs:
           fi
 
       - name: Tag image with additional tags
+        id: additional-tags
         if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
           echo "🏷️ Checking and adding additional tags..."
