@@ -204,6 +204,18 @@ jobs:
           name: debug-vars-${{ github.run_id }}
           path: it-works-on-my-machine/debug-vars.txt
 
+      - name: Push Docker image to ECR (with debug)
+        if: ${{ steps.push-decision.outputs.should_push == 'true' }}
+        run: |
+          echo "Attempting to push: ${{ steps.meta.outputs.image_uri }}"
+          set -e
+          docker push ${{ steps.meta.outputs.image_uri }} 2>&1 || {
+            echo "Push failed with exit code $?"
+            echo "Checking docker login status..."
+            docker system info | grep -i registry || echo "No registry info found"
+            exit 1
+          }
+
       - name: Push Docker image to ECR
         if: ${{ steps.push-decision.outputs.should_push == 'true' }}
         run: |
