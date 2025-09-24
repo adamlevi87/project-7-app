@@ -307,61 +307,48 @@ jobs:
           
           cat > provenance.json << EOF
           {
-            "_type": "https://in-toto.io/Statement/v0.1",
-            "predicateType": "https://slsa.dev/provenance/v0.2",
-            "subject": [
-              {
-                "name": "${{ env.ECR_REPOSITORY_FRONTEND }}",
+            "builder": {
+              "id": "https://github.com/actions/runner"
+            },
+            "buildType": "https://github.com/actions/workflow",
+            "invocation": {
+              "configSource": {
+                "uri": "https://github.com/${{ github.repository }}",
                 "digest": {
-                  "sha256": "$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
+                  "sha1": "${{ github.sha }}"
+                },
+                "entryPoint": ".github/workflows/frontend-deploy.yml"
+              },
+              "parameters": {
+                "branch": "${{ github.ref_name }}",
+                "commit": "${{ github.sha }}",
+                "workflow": "${{ github.workflow }}",
+                "environment": "${{ github.event.inputs.env }}",
+                "runId": "${{ github.run_id }}"
+              }
+            },
+            "metadata": {
+              "buildInvocationId": "${{ github.run_id }}",
+              "buildStartedOn": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+              "completeness": {
+                "parameters": true,
+                "environment": true,
+                "materials": true
+              }
+            },
+            "materials": [
+              {
+                "uri": "https://github.com/${{ github.repository }}",
+                "digest": {
+                  "sha1": "${{ github.sha }}"
                 }
               }
-            ],
-            "predicate": {
-              "builder": {
-                "id": "https://github.com/actions/runner"
-              },
-              "buildType": "https://github.com/actions/workflow",
-              "invocation": {
-                "configSource": {
-                  "uri": "https://github.com/${{ github.repository }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  },
-                  "entryPoint": ".github/workflows/frontend-deploy.yml"
-                },
-                "parameters": {
-                  "branch": "${{ github.ref_name }}",
-                  "commit": "${{ github.sha }}",
-                  "workflow": "${{ github.workflow }}",
-                  "environment": "${{ github.event.inputs.env }}"
-                }
-              },
-              "metadata": {
-                "buildInvocationId": "${{ github.run_id }}",
-                "buildStartedOn": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-                "completeness": {
-                  "parameters": true,
-                  "environment": true,
-                  "materials": true
-                },
-                "reproducible": false
-              },
-              "materials": [
-                {
-                  "uri": "https://github.com/${{ github.repository }}",
-                  "digest": {
-                    "sha1": "${{ github.sha }}"
-                  }
-                }
-              ]
-            }
+            ]
           }
           EOF
           
           echo "Build provenance generated"
-          echo "Provenance summary:"
-          cat provenance.json | jq '.predicate.metadata'
+          cat provenance.json
 
       - name: Upload provenance
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
