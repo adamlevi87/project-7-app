@@ -175,14 +175,14 @@ jobs:
 
       ##### Required for both pulling from and pushing to private repositories
       - name: Login to Docker Hub
-        if: ${{ steps.build-strategy.outputs.should_push == 'true' }}
+        if: ${{ steps.push-decision.outputs.should_push == 'true' }}
         run: |
           echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
       #####
 
       # Build with content hash
       - name: Build Docker image
-        if: ${{ steps.build-strategy.outputs.should_push == 'true' }}
+        if: ${{ steps.push-decision.outputs.should_push == 'true' }}
         run: |
           docker build -t ${{ steps.meta.outputs.image_uri }} .
           echo "✅ Image built"
