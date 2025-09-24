@@ -148,6 +148,7 @@ jobs:
           
           EXISTING_DIGEST=$(echo "$CONTENT_IMAGE" | jq -r '.imageDigest // ""')
           echo "existing_digest=$EXISTING_DIGEST" >> $GITHUB_OUTPUT
+          echo "DEBUG: existing_digest=$EXISTING_DIGEST"
 
           # Check if content tag was found (handle both null and {})
           if [ "$CONTENT_IMAGE" != "{}" ] && [ "$CONTENT_IMAGE" != "null" ] && [ "$EXISTING_DIGEST" != "" ]; then
