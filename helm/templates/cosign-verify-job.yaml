@@ -1,0 +1,25 @@
+{{- if .Values.cosign.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cosign-verify-{{ include "frontend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: cosign-verify
+        image: gcr.io/projectsigstore/cosign:v2.6.0
+        command:
+        - cosign
+        - verify
+        - --certificate-identity-regexp={{ .Values.cosign.certificateIdentity }}
+        - --certificate-oidc-issuer={{ .Values.cosign.oidcIssuer }}
+        - "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+{{- end }}

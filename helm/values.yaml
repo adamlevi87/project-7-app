@@ -57,3 +57,9 @@ externalSecrets:
 # Add this section to values.yaml
 secretStore:
   enabled: false          # Default to disabled
+
+# In infra-values.yaml or app-values.yaml
+cosign:
+  enabled: false
+  certificateIdentity: "https://github.com/your-org/your-app-repo"
+  oidcIssuer: "https://token.actions.githubusercontent.com"
