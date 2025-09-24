@@ -260,8 +260,9 @@ jobs:
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
         run: |
           DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
-          docker tag ${{ steps.meta.outputs.image_uri }} ${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG
-          docker push ${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG
+          DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
+          docker tag ${{ steps.meta.outputs.image_uri }} $DIGEST_TAG_FULL
+          docker push $DIGEST_TAG_FULL
           echo "Created digest-based tag: $DIGEST_TAG"
           
       - name: Install Syft for SBOM generation
