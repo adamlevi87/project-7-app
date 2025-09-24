@@ -230,13 +230,7 @@ jobs:
         run: |
           echo "🚀 Pushing image to ECR..."
           docker push ${{ steps.meta.outputs.image_uri }}
-
-          CONTENT_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:${{ steps.content-hash.outputs.content_tag }}"
-          docker tag ${{ steps.meta.outputs.image_uri }} $CONTENT_TAG_FULL
-          docker push $CONTENT_TAG_FULL
-          
           echo "✅ Image pushed successfully"
-          echo "✅ Content tag created: ${{ steps.content-hash.outputs.content_tag }}"
 
       - name: Capture final image digest
         id: final-digest
@@ -257,9 +251,13 @@ jobs:
             echo "♻️ Using existing digest: ${{ steps.ecr-check.outputs.existing_digest }}"
           fi
 
-      - name: Tag image with digest identifier
+      - name: Tag image with additional tags
         if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
+          CONTENT_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:${{ steps.content-hash.outputs.content_tag }}"
+          docker tag ${{ steps.meta.outputs.image_uri }} $CONTENT_TAG_FULL
+          docker push $CONTENT_TAG_FULL
+          echo "✅ Content tag created: ${{ steps.content-hash.outputs.content_tag }}"
           DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
           DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
           docker tag ${{ steps.meta.outputs.image_uri }} $DIGEST_TAG_FULL
