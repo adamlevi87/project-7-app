@@ -257,143 +257,143 @@ jobs:
             echo "♻️ Using existing digest: ${{ steps.ecr-check.outputs.existing_digest }}"
           fi
 
-      # - name: Tag image with digest identifier
+      - name: Tag image with digest identifier
+        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+        run: |
+          DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
+          DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
+          docker tag ${{ steps.meta.outputs.image_uri }} $DIGEST_TAG_FULL
+          docker push $DIGEST_TAG_FULL
+          echo "✅ Image pushed successfully"
+          echo "✅ Created digest-based tag: $DIGEST_TAG"
+
+      # - name: Install Syft for SBOM generation
       #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
       #   run: |
-      #     DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
-      #     DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
-      #     docker tag ${{ steps.meta.outputs.image_uri }} $DIGEST_TAG_FULL
-      #     docker push $DIGEST_TAG_FULL
-      #     echo "✅ Image pushed successfully"
-      #     echo "✅ Created digest-based tag: $DIGEST_TAG"
+      #     echo "Installing Syft for SBOM generation..."
+      #     curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+      #     syft --version
 
-      - name: Install Syft for SBOM generation
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        run: |
-          echo "Installing Syft for SBOM generation..."
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-          syft --version
-
-      - name: Generate Software Bill of Materials
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        run: |
-          echo "Generating Software Bill of Materials (SBOM)..."
+      # - name: Generate Software Bill of Materials
+      #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+      #   run: |
+      #     echo "Generating Software Bill of Materials (SBOM)..."
           
-          syft ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} \
-            -o spdx-json=sbom.spdx.json \
-            -o cyclonedx-json=sbom.cyclonedx.json \
-            -o table=sbom.txt
+      #     syft ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} \
+      #       -o spdx-json=sbom.spdx.json \
+      #       -o cyclonedx-json=sbom.cyclonedx.json \
+      #       -o table=sbom.txt
           
-          echo "SBOM files created:"
-          ls -la sbom.*
-          echo "SBOM Summary:"
-          head -10 sbom.txt
+      #     echo "SBOM files created:"
+      #     ls -la sbom.*
+      #     echo "SBOM Summary:"
+      #     head -10 sbom.txt
 
-      - name: Upload SBOM artifacts
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-reports-${{ github.sha }}
-          path: |
-            it-works-on-my-machine/sbom.*
+      # - name: Upload SBOM artifacts
+      #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: sbom-reports-${{ github.sha }}
+      #     path: |
+      #       it-works-on-my-machine/sbom.*
       
-      - name: Generate build provenance
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        run: |
-          echo "Generating build provenance..."
+      # - name: Generate build provenance
+      #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+      #   run: |
+      #     echo "Generating build provenance..."
           
-          cat > provenance.json << EOF
-          {
-            "builder": {
-              "id": "https://github.com/actions/runner"
-            },
-            "buildType": "https://github.com/actions/workflow",
-            "invocation": {
-              "configSource": {
-                "uri": "https://github.com/${{ github.repository }}",
-                "digest": {
-                  "sha1": "${{ github.sha }}"
-                },
-                "entryPoint": ".github/workflows/frontend-deploy.yml"
-              },
-              "parameters": {
-                "branch": "${{ github.ref_name }}",
-                "commit": "${{ github.sha }}",
-                "workflow": "${{ github.workflow }}",
-                "environment": "${{ github.event.inputs.env }}",
-                "runId": "${{ github.run_id }}"
-              }
-            },
-            "metadata": {
-              "buildInvocationId": "${{ github.run_id }}",
-              "buildStartedOn": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-              "completeness": {
-                "parameters": true,
-                "environment": true,
-                "materials": true
-              }
-            },
-            "materials": [
-              {
-                "uri": "https://github.com/${{ github.repository }}",
-                "digest": {
-                  "sha1": "${{ github.sha }}"
-                }
-              }
-            ]
-          }
-          EOF
+      #     cat > provenance.json << EOF
+      #     {
+      #       "builder": {
+      #         "id": "https://github.com/actions/runner"
+      #       },
+      #       "buildType": "https://github.com/actions/workflow",
+      #       "invocation": {
+      #         "configSource": {
+      #           "uri": "https://github.com/${{ github.repository }}",
+      #           "digest": {
+      #             "sha1": "${{ github.sha }}"
+      #           },
+      #           "entryPoint": ".github/workflows/frontend-deploy.yml"
+      #         },
+      #         "parameters": {
+      #           "branch": "${{ github.ref_name }}",
+      #           "commit": "${{ github.sha }}",
+      #           "workflow": "${{ github.workflow }}",
+      #           "environment": "${{ github.event.inputs.env }}",
+      #           "runId": "${{ github.run_id }}"
+      #         }
+      #       },
+      #       "metadata": {
+      #         "buildInvocationId": "${{ github.run_id }}",
+      #         "buildStartedOn": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+      #         "completeness": {
+      #           "parameters": true,
+      #           "environment": true,
+      #           "materials": true
+      #         }
+      #       },
+      #       "materials": [
+      #         {
+      #           "uri": "https://github.com/${{ github.repository }}",
+      #           "digest": {
+      #             "sha1": "${{ github.sha }}"
+      #           }
+      #         }
+      #       ]
+      #     }
+      #     EOF
           
-          echo "Build provenance generated"
-          cat provenance.json
+      #     echo "Build provenance generated"
+      #     cat provenance.json
 
-      - name: Upload provenance
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: provenance-${{ github.sha }}
-          path: it-works-on-my-machine/provenance.json
+      # - name: Upload provenance
+      #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: provenance-${{ github.sha }}
+      #     path: it-works-on-my-machine/provenance.json
 
-      - name: Install Cosign
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        uses: sigstore/cosign-installer@v3
-        with:
-          cosign-release: 'v2.6.0'
+      # - name: Install Cosign
+      #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+      #   uses: sigstore/cosign-installer@v3
+      #   with:
+      #     cosign-release: 'v2.6.0'
 
-      - name: Sign container image and attach attestations
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        run: |
-          echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
+      # - name: Sign container image and attach attestations
+      #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
+      #   run: |
+      #     echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
           
-          # Try to verify signature exists
-          if cosign verify \
-            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
-            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} 2>/dev/null; then
-            echo "✅ Signature already exists"
-          else
-            echo "🔑 No signature found - signing now..."
-            cosign sign --yes \
-              --attachment-tag-prefix="SIGNATURE-" \
-              ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-            echo "✅ Image signed successfully"
-          fi
+      #     # Try to verify signature exists
+      #     if cosign verify \
+      #       --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+      #       --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+      #       ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} 2>/dev/null; then
+      #       echo "✅ Signature already exists"
+      #     else
+      #       echo "🔑 No signature found - signing now..."
+      #       cosign sign --yes \
+      #         --attachment-tag-prefix="SIGNATURE-" \
+      #         ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+      #       echo "✅ Image signed successfully"
+      #     fi
           
-          echo "📎 Attaching SBOM attestation..."
-          cosign attest --yes \
-            --predicate sbom.spdx.json \
-            --attachment-tag-prefix="SBOM-" \
-            --type spdx \
-            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-          echo "✅ SBOM attestation attached"
+      #     echo "📎 Attaching SBOM attestation..."
+      #     cosign attest --yes \
+      #       --predicate sbom.spdx.json \
+      #       --attachment-tag-prefix="SBOM-" \
+      #       --type spdx \
+      #       ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+      #     echo "✅ SBOM attestation attached"
 
-          echo "📎 Attaching provenance attestation..."
-          cosign attest --yes \
-            --predicate provenance.json \
-            --attachment-tag-prefix="PROVENANCE-" \
-            --type slsaprovenance \
-            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
-          echo "✅ Provenance attestation attached"
+      #     echo "📎 Attaching provenance attestation..."
+      #     cosign attest --yes \
+      #       --predicate provenance.json \
+      #       --attachment-tag-prefix="PROVENANCE-" \
+      #       --type slsaprovenance \
+      #       ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+      #     echo "✅ Provenance attestation attached"
 
       - name: Check if digest changed in GitOps
         id: check-gitops-changes
