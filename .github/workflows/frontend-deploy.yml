@@ -374,23 +374,25 @@ jobs:
             echo "✅ Signature already exists"
           else
             echo "🔑 No signature found - signing now..."
-            cosign sign --yes ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+            cosign sign --yes \
+              --attachment-tag-prefix="signature" \
+              ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
             echo "✅ Image signed successfully"
           fi
           
           echo "📎 Attaching SBOM attestation..."
           cosign attest --yes \
             --predicate sbom.spdx.json \
+            --attachment-tag-prefix="SBOM" \
             --type spdx \
-            --attachment-tag-prefix="$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')-SBOM" \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ SBOM attestation attached"
 
           echo "📎 Attaching provenance attestation..."
           cosign attest --yes \
             --predicate provenance.json \
+            --attachment-tag-prefix="PROVENANCE" \
             --type slsaprovenance \
-            --attachment-tag-prefix="$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')-PROVENANCE" \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ Provenance attestation attached"
 
