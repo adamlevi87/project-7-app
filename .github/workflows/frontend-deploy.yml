@@ -112,6 +112,7 @@ jobs:
           
           echo "tag=$TAG" >> $GITHUB_OUTPUT
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "DEBUG: image_uri=$IMAGE_URI"
 
           #echo "image_base=$IMAGE_BASE" >> $GITHUB_OUTPUT
           #echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
