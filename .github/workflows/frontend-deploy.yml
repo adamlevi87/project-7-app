@@ -134,25 +134,22 @@ jobs:
         id: ecr-check
         run: |
           CONTENT_TAG="${{ steps.content-hash.outputs.content_tag }}"
-          
+         
           # Look for specific content tag instead of "latest"
           CONTENT_IMAGE=$(aws ecr describe-images \
             --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
             --region ${{ env.AWS_REGION }} \
-            --query "imageDetails[?contains(imageTags, '$CONTENT_TAG')] | [0]" \
-            --output json 2>/dev/null || echo "{}")
-        
+            --output json | jq '.imageDetails[] | select(.imageTags != null and (.imageTags[] | contains("'$CONTENT_TAG'"))) | . // {}' 2>/dev/null || echo "{}")
+       
           echo "DEBUG: CONTENT_IMAGE=$CONTENT_IMAGE"
-
           if [ "$CONTENT_IMAGE" == "{}" ] && [ "${{ github.event.inputs.action }}" == "update-digest-only" ]; then
             echo "❌ ERROR: 'update-digest-only' mode requires existing images in ECR"
             exit 1
           fi
-          
+         
           EXISTING_DIGEST=$(echo "$CONTENT_IMAGE" | jq -r '.imageDigest // ""')
           echo "existing_digest=$EXISTING_DIGEST" >> $GITHUB_OUTPUT
           echo "DEBUG: existing_digest=$EXISTING_DIGEST"
-
           # Check if content tag was found (handle both null and {})
           if [ "$CONTENT_IMAGE" != "{}" ] && [ "$CONTENT_IMAGE" != "null" ] && [ "$EXISTING_DIGEST" != "" ]; then
             echo "content_exists=true" >> $GITHUB_OUTPUT
