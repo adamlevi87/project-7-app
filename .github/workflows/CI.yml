@@ -44,22 +44,27 @@ on:
       skip_stage2:
         description: 'Skip Stage 2 (Testing)'
         required: false
-        default: true
+        default: false
         type: boolean
       skip_stage3:
         description: 'Skip Stage 3 (Security)'
         required: false
-        default: true
+        default: false
         type: boolean
       skip_stage4:
         description: 'Skip Stage 4 (Container Validation)'
         required: false
-        default: true
+        default: false
         type: boolean
       skip_stage5:
         description: 'Skip Stage 5 (Performance & Compliance)'
         required: false
-        default: true
+        default: false
+        type: boolean
+      skip_stage6:
+        description: 'Skip Stage 6 (Artifact Deployment)'
+        required: false
+        default: false
         type: boolean
 env:
   WORKFLOW_TIMEOUT: 15
