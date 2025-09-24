@@ -219,6 +219,27 @@ jobs:
             echo "♻️ Using existing digest: ${{ steps.ecr-check.outputs.existing_digest }}"
           fi
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.2.2'
+
+      - name: Check and ensure image signature
+        run: |
+          echo "🔍 Checking signature for digest: ${{ steps.final-digest.outputs.digest_only }}"
+          
+          # Try to verify signature exists (will fail silently if not found)
+          if cosign verify \
+            --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
+            --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+            ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }} 2>/dev/null; then
+            echo "✅ Signature already exists"
+          else
+            echo "🔑 No signature found - signing now..."
+            cosign sign --yes ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
+            echo "✅ Image signed successfully"
+          fi
+
       - name: Check if digest changed in GitOps
         id: check-gitops-changes
         env:
