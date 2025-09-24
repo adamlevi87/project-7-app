@@ -361,7 +361,7 @@ jobs:
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
         uses: sigstore/cosign-installer@v3
         with:
-          cosign-release: 'v2.2.2'
+          cosign-release: 'v2.6.0'
 
       - name: Sign container image and attach attestations
         if: ${{ steps.final-digest.outputs.digest_only != '' }}
