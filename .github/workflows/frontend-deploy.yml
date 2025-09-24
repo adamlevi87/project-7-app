@@ -134,11 +134,6 @@ jobs:
         run: |
           CONTENT_TAG="${{ steps.content-hash.outputs.content_tag }}"
           
-          #LATEST_IMAGE=$(aws ecr describe-images \
-            --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
-            --region ${{ env.AWS_REGION }} \
-            --query 'sort_by(imageDetails,&imagePushedAt)[-1]' \
-            --output json 2>/dev/null || echo "{}")
           CONTENT_IMAGE=$(aws ecr describe-images \
             --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
             --region ${{ env.AWS_REGION }} \
@@ -150,23 +145,9 @@ jobs:
             exit 1
           fi
           
-          #LATEST_TAGS=$(echo "$LATEST_IMAGE" | jq -r '.imageTags // []')
-          #LATEST_DIGEST=$(echo "$LATEST_IMAGE" | jq -r '.imageDigest // ""')
-          #echo "existing_digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
-
           EXISTING_DIGEST=$(echo "$CONTENT_IMAGE" | jq -r '.imageDigest // ""')
           echo "existing_digest=$EXISTING_DIGEST" >> $GITHUB_OUTPUT
 
-          # # Check if our content tag exists in latest image
-          # if echo "$LATEST_TAGS" | jq -e --arg tag "$CONTENT_TAG" 'index($tag)' >/dev/null; then
-          #   echo "content_exists=true" >> $GITHUB_OUTPUT
-          #   echo "✅ Content tag found: $CONTENT_TAG"
-          #   echo "We will NOT be pushing it to the ecr"
-          # else
-          #   echo "content_exists=false" >> $GITHUB_OUTPUT
-          #   echo "🆕 Content tag not found: $CONTENT_TAG"
-          #   echo "We will be pushing it to the ecr"
-          # fi
           # Check if content tag was found
           if [ "$CONTENT_IMAGE" != "{}" ]; then
             echo "content_exists=true" >> $GITHUB_OUTPUT
