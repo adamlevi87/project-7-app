@@ -254,16 +254,43 @@ jobs:
       - name: Tag image with additional tags
         if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         run: |
-          CONTENT_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:${{ steps.content-hash.outputs.content_tag }}"
-          docker tag ${{ steps.meta.outputs.image_uri }} $CONTENT_TAG_FULL
-          docker push $CONTENT_TAG_FULL
-          echo "✅ Content tag created: ${{ steps.content-hash.outputs.content_tag }}"
+          echo "🏷️ Checking and adding additional tags..."
+          
+          # Function to check and add tag if missing
+          check_and_add_tag() {
+            local tag_name="$1"
+            local tag_full="$2"
+            
+            echo "🔍 Checking $tag_name"
+            TAG_EXISTS=$(aws ecr describe-images \
+              --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
+              --region ${{ env.AWS_REGION }} \
+              --image-ids imageDigest=${{ steps.final-digest.outputs.digest_only }} \
+              --output json | jq -r '.imageDetails[0].imageTags[]? // empty' | grep -x "$tag_name" | head -1)
+            
+            if [ -z "$TAG_EXISTS" ]; then
+              echo "📝 Adding $tag_name..."
+              docker tag ${{ steps.meta.outputs.image_uri }} "$tag_full"
+              docker push "$tag_full"
+              echo "✅ Created tag: $tag_name"
+            else
+              echo "✅ Tag already exists: $tag_name"
+            fi
+          }
+          
+          # Content tag (only if we pushed new content)
+          if [ "${{ steps.push-decision.outputs.should_push }}" == "true" ]; then
+            CONTENT_TAG="${{ steps.content-hash.outputs.content_tag }}"
+            CONTENT_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$CONTENT_TAG"
+            check_and_add_tag "$CONTENT_TAG" "$CONTENT_TAG_FULL"
+          fi
+          
+          # Digest tag (always for builds)
           DIGEST_TAG="sha256-$(echo ${{ steps.final-digest.outputs.digest_only }} | sed 's/sha256://')"
           DIGEST_TAG_FULL="${{ env.ECR_REPOSITORY_FRONTEND }}:$DIGEST_TAG"
-          docker tag ${{ steps.meta.outputs.image_uri }} $DIGEST_TAG_FULL
-          docker push $DIGEST_TAG_FULL
-          echo "✅ Image pushed successfully"
-          echo "✅ Created digest-based tag: $DIGEST_TAG"
+          check_and_add_tag "$DIGEST_TAG" "$DIGEST_TAG_FULL"
+          
+          echo "🏷️ Additional tagging complete"
 
       # - name: Install Syft for SBOM generation
       #   if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
