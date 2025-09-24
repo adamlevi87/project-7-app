@@ -134,6 +134,7 @@ jobs:
         run: |
           CONTENT_TAG="${{ steps.content-hash.outputs.content_tag }}"
           
+          # Look for specific content tag instead of "latest"
           CONTENT_IMAGE=$(aws ecr describe-images \
             --repository-name $(basename ${{ env.ECR_REPOSITORY_FRONTEND }}) \
             --region ${{ env.AWS_REGION }} \
@@ -148,8 +149,8 @@ jobs:
           EXISTING_DIGEST=$(echo "$CONTENT_IMAGE" | jq -r '.imageDigest // ""')
           echo "existing_digest=$EXISTING_DIGEST" >> $GITHUB_OUTPUT
 
-          # Check if content tag was found
-          if [ "$CONTENT_IMAGE" != "{}" ]; then
+          # Check if content tag was found (handle both null and {})
+          if [ "$CONTENT_IMAGE" != "{}" ] && [ "$CONTENT_IMAGE" != "null" ] && [ "$EXISTING_DIGEST" != "" ]; then
             echo "content_exists=true" >> $GITHUB_OUTPUT
             echo "✅ Content tag found: $CONTENT_TAG"
             echo "We will NOT be pushing it to the ecr"
