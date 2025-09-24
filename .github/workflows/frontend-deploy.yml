@@ -142,8 +142,10 @@ jobs:
             --query "imageDetails[?contains(imageTags, '$CONTENT_TAG')] | [0]" \
             --output json 2>/dev/null || echo "{}")
         
+          echo "DEBUG: CONTENT_IMAGE=$CONTENT_IMAGE"
+
           if [ "$CONTENT_IMAGE" == "{}" ] && [ "${{ github.event.inputs.action }}" == "update-digest-only" ]; then
-            echo "❌ ERROR: update-digest-only requires existing images in ECR"
+            echo "❌ ERROR: 'update-digest-only' mode requires existing images in ECR"
             exit 1
           fi
           
