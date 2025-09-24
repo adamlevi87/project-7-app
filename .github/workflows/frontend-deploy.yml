@@ -384,6 +384,8 @@ jobs:
           cosign attest --yes \
             --predicate sbom.spdx.json \
             --type spdx \
+            --registry-referrers-mode=oci-1-1 \
+            --annotation="attestation-type=sbom" \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ SBOM attestation attached"
           
@@ -391,11 +393,11 @@ jobs:
           cosign attest --yes \
             --predicate provenance.json \
             --type slsaprovenance \
+            --registry-referrers-mode=oci-1-1 \
+            --annotation="attestation-type=provenance" \
             ${{ env.ECR_REPOSITORY_FRONTEND }}@${{ steps.final-digest.outputs.digest_only }}
           echo "✅ Provenance attestation attached"
 
-      
-      
       - name: Check if digest changed in GitOps
         id: check-gitops-changes
         env:
