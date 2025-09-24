@@ -65,7 +65,7 @@ env:
   WORKFLOW_TIMEOUT: 15
 
 jobs:
-  stage_0_base_image_management:
+  stage0-base-image-management:
     runs-on: ubuntu-latest
     if: ${{ inputs.skip_stage_0 != true }}
     steps:
@@ -237,7 +237,7 @@ jobs:
         
   stage1-quality:
     runs-on: ubuntu-latest
-    needs: stage_0_base_image_management
+    needs: stage0-base-image-management
     if: ${{ inputs.skip_stage1 != true && !failure() }}
     
     defaults:
@@ -1208,4 +1208,28 @@ jobs:
     ###############
   ##############################
 
-  
+  stage6-artifact-deployment:
+    runs-on: ubuntu-latest
+    needs: stage5-performance-compliance
+    if: ${{ inputs.skip_stage6 != true && !failure() }}
+
+    steps:
+      - name: Trigger Frontend Deploy Workflow
+        run: |
+          echo "Triggering frontend deployment workflow for dev environment..."
+          
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/frontend-deploy.yml/dispatches" \
+            -d "{
+              \"ref\": \"${{ github.ref_name }}\",
+              \"inputs\": {
+                \"env\": \"dev\",
+                \"action\": \"build-and-push\",
+                \"auto_merge\": \"true\",
+                \"force_cosign\": \"false\"
+              }
+            }"
+          
+          echo "Frontend deploy workflow triggered for dev environment"
