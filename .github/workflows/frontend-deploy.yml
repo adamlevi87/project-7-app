@@ -33,15 +33,15 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: app/frontend
+        working-directory: it-works-on-my-machine
     permissions:
       contents: read
       id-token: write  # Required for OIDC
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2  # Need previous commit for change detection
+        # with:
+        #   fetch-depth: 2  # Need previous commit for change detection
       
       - name: Set environment variables
         run: |
@@ -116,7 +116,7 @@ jobs:
           #echo "image_base=$IMAGE_BASE" >> $GITHUB_OUTPUT
           #echo "sha_short=$SHA_SHORT" >> $GITHUB_OUTPUT
       
-      # Step 1: Calculate content hash
+      # Calculate content hash
       - name: Get content hash
         id: content-hash
         run: |
@@ -124,7 +124,7 @@ jobs:
           echo "content_hash=$CONTENT_HASH" >> $GITHUB_OUTPUT
           echo "📝 Content hash: $CONTENT_HASH"
 
-      # Step 2: Get content hash from latest ECR image
+      # Get content hash from latest ECR image
       - name: Check if content exists in ECR
         if: ${{ steps.build-strategy.outputs.should_compare_digest == 'true' }}
         id: ecr-check
@@ -158,13 +158,6 @@ jobs:
             echo "We will be pushing it to the ecr"
           fi
 
-      # Step 3: Build with content hash
-      - name: Build Docker image
-        if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
-        run: |
-          docker build -t ${{ steps.meta.outputs.image_uri }} .
-          echo "✅ Image built"
-
       - name: Compare content and decide to push
         if: ${{ steps.build-strategy.outputs.should_build == 'true' }}
         id: push-decision
@@ -179,6 +172,20 @@ jobs:
             echo "should_push=false" >> $GITHUB_OUTPUT
             echo "✅ Content unchanged - already exists in ECR, skipping push"
           fi
+
+      ##### Required for both pulling from and pushing to private repositories
+      - name: Login to Docker Hub
+        if: ${{ steps.build-strategy.outputs.should_push == 'true' }}
+        run: |
+          echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
+      #####
+
+      # Build with content hash
+      - name: Build Docker image
+        if: ${{ steps.build-strategy.outputs.should_push == 'true' }}
+        run: |
+          docker build -t ${{ steps.meta.outputs.image_uri }} .
+          echo "✅ Image built"
 
       - name: Push Docker image to ECR
         if: ${{ steps.push-decision.outputs.should_push == 'true' }}
