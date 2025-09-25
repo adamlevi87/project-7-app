@@ -332,7 +332,7 @@ jobs:
           echo "🔍 Checking Dockerfile FROM statements..."
           
           DOCKERFILE_PATH="it-works-on-my-machine/Dockerfile"
-          EXPECTED_FROM="FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
+          EXPECTED_BASE_IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
           
           echo "📝 Updating all FROM statements to use: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
 
@@ -352,15 +352,18 @@ jobs:
           echo "📋 Found FROM statements:"
           echo "$FROM_STATEMENTS"
           echo ""
-          echo "📋 Expected FROM statement:"
-          echo "$EXPECTED_FROM"
+          echo "📋 Expected base image:"
+          echo "$EXPECTED_BASE_IMAGE"
           echo ""
           
           # Check if any FROM statement doesn't match expected
           CHANGES_REQUIRED=false
           while IFS= read -r from_line; do
-            if [[ "$from_line" != "$EXPECTED_FROM" ]]; then
-              echo "❌ FROM mismatch found: $from_line"
+            # Extract just the image part (before any AS clause)
+            IMAGE_PART=$(echo "$from_line" | awk '{print $2}')
+            
+            if [[ "$IMAGE_PART" != "$EXPECTED_BASE_IMAGE" ]]; then
+              echo "❌ FROM mismatch found: $from_line (expected base: $EXPECTED_BASE_IMAGE)"
               CHANGES_REQUIRED=true
             else
               echo "✅ FROM statement matches: $from_line"
@@ -399,13 +402,13 @@ jobs:
           
           # Update Dockerfile - replace all FROM statements
           DOCKERFILE_PATH="it-works-on-my-machine/Dockerfile"
-          EXPECTED_FROM="FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
+          EXPECTED_BASE_IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
           
-          echo "📝 Updating all FROM statements to: $EXPECTED_FROM"
+          echo "📝 Updating all FROM statements to: $EXPECTED_BASE_IMAGE"
           
           # Use sed to replace FROM statements while preserving AS clauses
-          sed -i "s|FROM.*${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}[^ ]*\(.*\)|FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}\1|g" "$DOCKERFILE_PATH"
-          sed -i "s|FROM.*node:18-alpine[^ ]*\(.*\)|FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}\1|g" "$DOCKERFILE_PATH"
+          sed -i "s|FROM.*${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}[^ ]*\(.*\)|$EXPECTED_BASE_IMAGE\1|g" "$DOCKERFILE_PATH"
+          sed -i "s|FROM.*node:18-alpine[^ ]*\(.*\)|$EXPECTED_BASE_IMAGE\1|g" "$DOCKERFILE_PATH"
           
           # Verify changes
           echo "📋 Updated Dockerfile FROM statements:"
