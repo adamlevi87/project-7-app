@@ -184,9 +184,9 @@ jobs:
           
           # Tag for private registry
           echo "🏷️ Tagging for private registry..."
-          #docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
 
+          #docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
+          #   ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
             "${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}""
           
@@ -195,6 +195,7 @@ jobs:
           
           # Create a temporary Dockerfile to add labels
           echo "📋 Adding build metadata via temporary Dockerfile..."
+
           # cat > /tmp/Dockerfile.labels << 'EOF'
           # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           # EOF
@@ -214,6 +215,7 @@ jobs:
           echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
           
           # Build and push with labels (without Content Trust signing)
+
           # docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
           # docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} .
