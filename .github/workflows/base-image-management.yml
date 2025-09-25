@@ -407,9 +407,8 @@ jobs:
           echo "📝 Updating all FROM statements to: $EXPECTED_BASE_IMAGE"
           
           # Use sed to replace FROM statements while preserving AS clauses
-          sed -i "s|FROM.*${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}[^ ]*\(.*\)|$EXPECTED_BASE_IMAGE\1|g" "$DOCKERFILE_PATH"
-          sed -i "s|FROM.*node:18-alpine[^ ]*\(.*\)|$EXPECTED_BASE_IMAGE\1|g" "$DOCKERFILE_PATH"
-          
+          sed -i "s|FROM ${EXPECTED_BASE_IMAGE%:*}:[^ ]*|$EXPECTED_BASE_IMAGE|g" "$DOCKERFILE_PATH"
+
           # Verify changes
           echo "📋 Updated Dockerfile FROM statements:"
           grep "^FROM" "$DOCKERFILE_PATH"
