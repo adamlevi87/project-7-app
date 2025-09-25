@@ -13,6 +13,15 @@ on:
   #     - 'it-works-on-my-machine/**'
   workflow_dispatch:
     inputs:
+      target_branch:
+        description: 'Target branch (dev/staging/main)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging  
+          - main
       base_image_with_digest:
         description: 'Base image with multi-arch manifest digest'
         required: false
@@ -51,6 +60,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_branch }}
       
       ############################## Stage 0: Base Image Management & Supply Chain Security
       ############### Input Parsing and Validation
