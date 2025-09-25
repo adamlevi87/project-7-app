@@ -34,11 +34,12 @@ on:
       target_version:
         description: 'Target version to use/create (e.g., 2025-01-15)'
         required: true
+        default: '2025-09-25'
         type: string
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
         required: false
-        default: true
+        default: false
         type: boolean
 env:
   WORKFLOW_TIMEOUT: 15
