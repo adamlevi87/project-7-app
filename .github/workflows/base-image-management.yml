@@ -199,9 +199,7 @@ jobs:
           # cat > /tmp/Dockerfile.labels << 'EOF'
           # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           # EOF
-          cat > /tmp/Dockerfile.labels << EOF
-          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
-          EOF
+          echo "FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}" > /tmp/Dockerfile.labels
           
           # Add static labels to Dockerfile
           for label_pair in "${STATIC_LABELS[@]}"; do
