@@ -1,5 +1,5 @@
 ########## Stage 1: Build stage
-FROM adamlevi87/node-18-alpine-current:2025-09-25 AS builder
+FROM adamlevi87/node-18-alpine-current:2025-09-23 AS builder
 
 # dumb init
 RUN apk add --no-cache dumb-init=1.2.5-r3
@@ -16,7 +16,7 @@ RUN npm ci --omit=dev
 
 
 ########## Stage 2: Runtime stage  
-FROM adamlevi87/node-18-alpine-current:2025-09-25 AS runtime
+FROM adamlevi87/node-18-alpine-current:2025-09-23 AS runtime
 
 # Workdir
 WORKDIR /app
