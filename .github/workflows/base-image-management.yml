@@ -188,7 +188,7 @@ jobs:
           #docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
           #   ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
-            "${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}""
+            "${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}"
           
           # Parse the static labels
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
@@ -196,7 +196,12 @@ jobs:
           # Create a temporary Dockerfile to add labels
           echo "📋 Adding build metadata via temporary Dockerfile..."
 
-          echo "FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}" > /tmp/Dockerfile.labels
+          # cat > /tmp/Dockerfile.labels << 'EOF'
+          # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          # EOF
+          cat > /tmp/Dockerfile.labels << 'EOF'
+          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
+          EOF
           
           # Add static labels to Dockerfile
           for label_pair in "${STATIC_LABELS[@]}"; do
