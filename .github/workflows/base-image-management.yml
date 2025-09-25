@@ -409,6 +409,9 @@ jobs:
           # Use sed to replace FROM statements while preserving AS clauses
           sed -i "s|FROM ${EXPECTED_BASE_IMAGE%:*}:[^ ]*|$EXPECTED_BASE_IMAGE|g" "$DOCKERFILE_PATH"
 
+          echo "📋 Dockerfile content after sed:"
+          cat "$DOCKERFILE_PATH"
+          
           # Verify changes
           echo "📋 Updated Dockerfile FROM statements:"
           grep "^FROM" "$DOCKERFILE_PATH"
