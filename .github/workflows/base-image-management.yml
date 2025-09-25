@@ -31,6 +31,10 @@ on:
         required: false
         default: 'node-18-alpine-current'
         type: string
+      target_version:
+        description: 'Target version to use/create (e.g., 2025-01-15)'
+        required: true
+        type: string
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
         required: false
@@ -121,19 +125,23 @@ jobs:
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
           NEEDS_PUSH=true
           set +e
-          docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
+          #docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
+          docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} > /dev/null 2>&1
           MANIFEST_EXISTS=$?
           set -e
           
           if [ $MANIFEST_EXISTS -eq 0 ]; then
             echo "🔍 Image found in private registry, checking labels..."
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-            LABELS_MATCH=true
+            #docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+            #docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1            LABELS_MATCH=true
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} > /dev/null 2>&1
             for label_pair in "${STATIC_LABELS[@]}"; do
               label_key=$(echo $label_pair | cut -d':' -f1)
               expected_value=$(echo $label_pair | cut -d':' -f2-)
               set +e
-              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
+              #actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
+              #actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} | jq -r ".[0].Config.Labels[\"$label_key\"] // \"\"")
+              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} | jq -r ".[0].Config.Labels[\"$label_key\"] // \"\"")
               INSPECT_RESULT=$?
               echo "Expected: $expected_value"
               echo "Actual: $actual_value"
@@ -175,16 +183,21 @@ jobs:
           
           # Tag for private registry
           echo "🏷️ Tagging for private registry..."
-          docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
+          #docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
+            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
           
           # Parse the static labels
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
           
           # Create a temporary Dockerfile to add labels
           echo "📋 Adding build metadata via temporary Dockerfile..."
+          # cat > /tmp/Dockerfile.labels << 'EOF'
+          # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          # EOF
           cat > /tmp/Dockerfile.labels << 'EOF'
-          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
           EOF
           
           # Add static labels to Dockerfile
@@ -199,9 +212,11 @@ jobs:
           echo "LABEL \"build.run_id\"=\"${{ github.run_id }}\"" >> /tmp/Dockerfile.labels
           
           # Build and push with labels (without Content Trust signing)
-          docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          
+          # docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
+          # docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+          docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
+
           # Clean up
           rm /tmp/Dockerfile.labels
           
