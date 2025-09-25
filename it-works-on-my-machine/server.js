@@ -11,7 +11,7 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      secure: true, // Force HTTPS-only cookies
+      secure: false, // ALB does TLS termination, app receives HTTP
       httpOnly: true, // Prevent XSS attacks
       maxAge: 24 * 60 * 60 * 1000, // 24 hours expiration
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // Explicit expiration date
@@ -21,11 +21,7 @@ app.use(
   }),
 );
 
-// CSRF protection middleware
-const csrfProtection = csrf();
-
-app.use(csrfProtection);
-
+// Health check endpoints BEFORE CSRF protection (no token required)
 let healthy = true;
 
 app.get("/health", (req, res) => {
@@ -36,9 +32,19 @@ app.get("/health", (req, res) => {
   }
 });
 
+// CSRF protection middleware (applies to routes AFTER this point)
+const csrfProtection = csrf();
+app.use(csrfProtection);
+
+// Protected routes (require CSRF token)
 app.get("/disable-health", (req, res) => {
   healthy = false;
   res.send("Health disabled");
+});
+
+// Optional: Add a route to get CSRF token for testing
+app.get("/csrf-token", (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
 });
 
 // Export the app for testing
