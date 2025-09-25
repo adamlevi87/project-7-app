@@ -27,7 +27,7 @@ const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
     secure: false,     // ALB does TLS termination, app receives HTTP
-    sameSite: 'strict'
+    sameSite: "strict"
   }
 });
 
