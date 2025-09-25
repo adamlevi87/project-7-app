@@ -1,27 +1,8 @@
 const express = require("express");
-const session = require("express-session");
 const csrf = require("@dr.pogodin/csurf");
 const app = express();
 
-// Session middleware with secure settings
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "fallback-secret-for-dev",
-    name: "sessionId", // Custom session cookie name
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: false, // ALB does TLS termination, app receives HTTP
-      httpOnly: true, // Prevent XSS attacks
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours expiration
-      expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // Explicit expiration date
-      path: "/", // Cookie path
-      domain: process.env.COOKIE_DOMAIN || undefined, // Set domain if needed
-    },
-  }),
-);
-
-// Health check endpoints BEFORE CSRF protection (no token required)
+// Health check endpoints FIRST - NO CSRF protection (Kubernetes/ALB friendly)
 let healthy = true;
 
 app.get("/health", (req, res) => {
@@ -32,19 +13,27 @@ app.get("/health", (req, res) => {
   }
 });
 
-// CSRF protection middleware (applies to routes AFTER this point)
-const csrfProtection = csrf();
+// CSRF protection using cookies instead of sessions 
+// NO MEMORY LEAK WARNING! Perfect for ALB + Kubernetes
+const csrfProtection = csrf({ 
+  cookie: {
+    httpOnly: true,
+    secure: false,     // ALB does TLS termination, app receives HTTP
+    sameSite: 'strict'
+  }
+});
+
 app.use(csrfProtection);
 
-// Protected routes (require CSRF token)
+// Get CSRF token for testing protected endpoints
+app.get("/csrf-token", (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
+
+// Protected routes AFTER CSRF protection (require CSRF token)
 app.get("/disable-health", (req, res) => {
   healthy = false;
   res.send("Health disabled");
-});
-
-// Optional: Add a route to get CSRF token for testing
-app.get("/csrf-token", (req, res) => {
-  res.json({ csrfToken: req.csrfToken() });
 });
 
 // Export the app for testing
