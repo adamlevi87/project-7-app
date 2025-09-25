@@ -48,6 +48,11 @@ on:
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
         required: false
+        default: true
+        type: boolean
+      skip_stage_1:
+        description: 'Skip Stage 1 (handling dockerfile)'
+        required: false
         default: false
         type: boolean
 env:
@@ -275,7 +280,7 @@ jobs:
   stage1-dockerfile-check:
     runs-on: ubuntu-latest
     needs: stage0-base-image-management
-    if: ${{ inputs.skip_stage_0 != true }}
+    if: ${{ inputs.skip_stage1 != true && !failure() }}
     steps:
       - name: Checkout target branch
         uses: actions/checkout@v4
