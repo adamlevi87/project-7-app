@@ -64,7 +64,7 @@ on:
       skip_stage6:
         description: 'Skip Stage 6 (Artifact Deployment)'
         required: false
-        default: true
+        default: false
         type: boolean
 env:
   WORKFLOW_TIMEOUT: 15
