@@ -10,17 +10,18 @@ describe("Express App Health Endpoints", () => {
   });
 
   test("GET /disable-health should disable health check", async () => {
-    // First, get a CSRF token
-    const tokenResponse = await request(app).get("/csrf-token");
+    // Create an agent to maintain session/cookies across requests
+    const agent = request.agent(app);
+    
+    // First, get a CSRF token (this will set the cookie automatically)
+    const tokenResponse = await agent.get("/csrf-token");
     expect(tokenResponse.status).toBe(200);
-
+    
     const { csrfToken } = tokenResponse.body;
-    const cookies = tokenResponse.headers["set-cookie"];
 
-    // Then use the token to disable health
-    const response = await request(app)
+    // Then use the token to disable health (agent keeps cookies)
+    const response = await agent
       .get("/disable-health")
-      .set("Cookie", cookies)
       .set("X-CSRF-Token", csrfToken);
 
     expect(response.status).toBe(200);
@@ -28,18 +29,21 @@ describe("Express App Health Endpoints", () => {
   });
 
   test("GET /health should return 500 after being disabled", async () => {
-    // First, get a CSRF token
-    const tokenResponse = await request(app).get("/csrf-token");
+    // Create an agent to maintain session/cookies across requests
+    const agent = request.agent(app);
+    
+    // Get CSRF token
+    const tokenResponse = await agent.get("/csrf-token");
+    expect(tokenResponse.status).toBe(200);
+    
     const { csrfToken } = tokenResponse.body;
-    const cookies = tokenResponse.headers["set-cookie"];
 
     // Disable health using CSRF token
-    await request(app)
+    await agent
       .get("/disable-health")
-      .set("Cookie", cookies)
       .set("X-CSRF-Token", csrfToken);
 
-    // Then check health status
+    // Then check health status (no agent needed, health endpoint is unprotected)
     const response = await request(app).get("/health");
 
     expect(response.status).toBe(500);
