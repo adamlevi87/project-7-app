@@ -1,10 +1,14 @@
 const express = require("express");
 const csrf = require("@dr.pogodin/csurf");
+const cookieParser = require("cookie-parser");
 const app = express();
 
-// Add body parsing middleware (required for CSRF)
+// Body parsing middleware
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+
+// Cookie parsing (REQUIRED for cookie-based CSRF)
+app.use(cookieParser());
 
 // Health check endpoints FIRST - NO CSRF protection (Kubernetes/ALB friendly)
 let healthy = true;
