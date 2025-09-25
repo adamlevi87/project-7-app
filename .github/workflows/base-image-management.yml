@@ -115,16 +115,43 @@ jobs:
           echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
       #####
 
+      ############### Target Version Resolution
+      ##### Resolve target version - if "latest" is specified, find the most recent date tag
+      ##### If latest image has no date tag, use today's date
+      ##### This provides better UX while maintaining date-based versioning internally
       - name: Resolve target version
         id: resolve_version
         run: |
           if [ "${{ inputs.target_version }}" = "latest" ]; then
-            # Get latest image and check for date tag
-            # Set RESOLVED_VERSION to either the found date or today's date
+            echo "🔍 Resolving 'latest' to actual date tag..."
+            
+            # Get the latest image digest from Docker Hub
+            LATEST_DIGEST=$(docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} | jq -r '.config.digest' 2>/dev/null || echo "")
+            
+            if [ -n "$LATEST_DIGEST" ]; then
+              # Pull the latest image and check its labels for date tag
+              docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} >/dev/null 2>&1
+              DATE_TAG=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} | jq -r '.[0].Config.Labels["build.date_tag"] // ""' 2>/dev/null || echo "")
+              
+              if [ -n "$DATE_TAG" ] && [[ "$DATE_TAG" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+                RESOLVED_VERSION="$DATE_TAG"
+                echo "✅ Found existing date tag: $DATE_TAG"
+              else
+                RESOLVED_VERSION=$(date -u +%Y-%m-%d)
+                echo "⚠️ Latest image has no date tag, using today's date: $RESOLVED_VERSION"
+              fi
+            else
+              RESOLVED_VERSION=$(date -u +%Y-%m-%d)
+              echo "ℹ️ No latest image found, using today's date: $RESOLVED_VERSION"
+            fi
           else
             RESOLVED_VERSION="${{ inputs.target_version }}"
+            echo "✅ Using specified version: $RESOLVED_VERSION"
           fi
-          echo "resolved_version=${RESOLVED_VERSION}" >> $GITHUB_OUTPUT
+          
+          echo "resolved_version=$RESOLVED_VERSION" >> $GITHUB_OUTPUT
+          echo "🎯 Target version resolved to: $RESOLVED_VERSION"
+      #####
 
       ############### Private Registry Cache Check
       ##### Check if image already exists in private registry with matching labels
