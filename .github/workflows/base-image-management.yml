@@ -125,24 +125,17 @@ jobs:
           if [ "${{ inputs.target_version }}" = "latest" ]; then
             echo "🔍 Resolving 'latest' to actual date tag..."
             
-            # Get the latest image digest from Docker Hub
-            LATEST_DIGEST=$(docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} | jq -r '.config.digest' 2>/dev/null || echo "")
+            # Get all tags and find the most recent date tag
+            LATEST_DATE_TAG=$(curl -s "https://registry-1.docker.io/v2/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}/tags/list" \
+              -H "Authorization: Bearer $(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:pull" | jq -r .token)" \
+              | jq -r '.tags[]' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | sort -r | head -1 2>/dev/null || echo "")
             
-            if [ -n "$LATEST_DIGEST" ]; then
-              # Pull the latest image and check its labels for date tag
-              docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} >/dev/null 2>&1
-              DATE_TAG=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} | jq -r '.[0].Config.Labels["build.date_tag"] // ""' 2>/dev/null || echo "")
-              
-              if [ -n "$DATE_TAG" ] && [[ "$DATE_TAG" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-                RESOLVED_VERSION="$DATE_TAG"
-                echo "✅ Found existing date tag: $DATE_TAG"
-              else
-                RESOLVED_VERSION=$(date -u +%Y-%m-%d)
-                echo "⚠️ Latest image has no date tag, using today's date: $RESOLVED_VERSION"
-              fi
+            if [ -n "$LATEST_DATE_TAG" ]; then
+              RESOLVED_VERSION="$LATEST_DATE_TAG"
+              echo "✅ Found latest date tag: $LATEST_DATE_TAG"
             else
               RESOLVED_VERSION=$(date -u +%Y-%m-%d)
-              echo "ℹ️ No latest image found, using today's date: $RESOLVED_VERSION"
+              echo "ℹ️ No date tags found, using today's date: $RESOLVED_VERSION"
             fi
           else
             RESOLVED_VERSION="${{ inputs.target_version }}"
