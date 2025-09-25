@@ -32,9 +32,9 @@ on:
         default: 'node-18-alpine-current'
         type: string
       target_version:
-        description: 'Target version to use/create (e.g., 2025-01-15)'
+        description: 'Target version to use/create (e.g., 2025-01-15 or "latest")'
         required: true
-        default: '2025-09-25'
+        default: 'latest'
         type: string
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
@@ -115,6 +115,17 @@ jobs:
           echo "${{ secrets.DOCKER_HUB_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin
       #####
 
+      - name: Resolve target version
+        id: resolve_version
+        run: |
+          if [ "${{ inputs.target_version }}" = "latest" ]; then
+            # Get latest image and check for date tag
+            # Set RESOLVED_VERSION to either the found date or today's date
+          else
+            RESOLVED_VERSION="${{ inputs.target_version }}"
+          fi
+          echo "resolved_version=${RESOLVED_VERSION}" >> $GITHUB_OUTPUT
+
       ############### Private Registry Cache Check
       ##### Check if image already exists in private registry with matching labels
       ##### Implements intelligent caching to avoid unnecessary rebuilds and pushes
@@ -127,7 +138,7 @@ jobs:
           NEEDS_PUSH=true
           set +e
           #docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
-          docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} > /dev/null 2>&1
+          docker manifest inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }} > /dev/null 2>&1
           MANIFEST_EXISTS=$?
           set -e
           
@@ -136,14 +147,14 @@ jobs:
             #docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
             #docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} > /dev/null 2>&1
             LABELS_MATCH=true
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} > /dev/null 2>&1
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }} > /dev/null 2>&1
             for label_pair in "${STATIC_LABELS[@]}"; do
               label_key=$(echo $label_pair | cut -d':' -f1)
               expected_value=$(echo $label_pair | cut -d':' -f2-)
               set +e
               #actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} --format="{{index .Config.Labels \"$label_key\"}}" 2>/dev/null)
               #actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} | jq -r ".[0].Config.Labels[\"$label_key\"] // \"\"")
-              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} | jq -r ".[0].Config.Labels[\"$label_key\"] // \"\"")
+              actual_value=$(docker inspect ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }} | jq -r ".[0].Config.Labels[\"$label_key\"] // \"\"")
               INSPECT_RESULT=$?
               echo "Expected: $expected_value"
               echo "Actual: $actual_value"
@@ -189,7 +200,7 @@ jobs:
           #docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
           #   ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
-            "${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}"
+            "${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
           
           # Parse the static labels
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
@@ -201,7 +212,7 @@ jobs:
           # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           # EOF
           cat > /tmp/Dockerfile.labels << 'EOF'
-          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
+          FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}
           EOF
           
           # Add static labels to Dockerfile
@@ -219,8 +230,8 @@ jobs:
 
           # docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }} .
           # docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }} .
-          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
+          docker build -f /tmp/Dockerfile.labels -t ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }} .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}
 
           # Clean up
           rm /tmp/Dockerfile.labels
