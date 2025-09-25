@@ -196,9 +196,6 @@ jobs:
           # Create a temporary Dockerfile to add labels
           echo "📋 Adding build metadata via temporary Dockerfile..."
 
-          # cat > /tmp/Dockerfile.labels << 'EOF'
-          # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
-          # EOF
           echo "FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}" > /tmp/Dockerfile.labels
           
           # Add static labels to Dockerfile
