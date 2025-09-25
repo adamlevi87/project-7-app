@@ -21,14 +21,14 @@ app.get("/health", (req, res) => {
   }
 });
 
-// CSRF protection using cookies instead of sessions 
+// CSRF protection using cookies instead of sessions
 // NO MEMORY LEAK WARNING! Perfect for ALB + Kubernetes
-const csrfProtection = csrf({ 
+const csrfProtection = csrf({
   cookie: {
     httpOnly: true,
-    secure: false,     // ALB does TLS termination, app receives HTTP
-    sameSite: "strict"
-  }
+    secure: false, // ALB does TLS termination, app receives HTTP
+    sameSite: "strict",
+  },
 });
 
 app.use(csrfProtection);
