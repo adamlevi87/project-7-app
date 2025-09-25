@@ -161,6 +161,7 @@ jobs:
         id: check_private
         run: |
           echo "🔍 Checking if image already exists in private registry..."
+          echo "resolved_version is:  ${{ steps.resolve_version.outputs.resolved_version }}"
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
           NEEDS_PUSH=true
           set +e
