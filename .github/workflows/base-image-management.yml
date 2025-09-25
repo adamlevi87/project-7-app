@@ -199,7 +199,7 @@ jobs:
           # cat > /tmp/Dockerfile.labels << 'EOF'
           # FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
           # EOF
-          cat > /tmp/Dockerfile.labels << 'EOF'
+          cat > /tmp/Dockerfile.labels << EOF
           FROM ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
           EOF
           
