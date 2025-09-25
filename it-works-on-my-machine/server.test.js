@@ -13,15 +13,15 @@ describe("Express App Health Endpoints", () => {
     // First, get a CSRF token
     const tokenResponse = await request(app).get("/csrf-token");
     expect(tokenResponse.status).toBe(200);
-    
+
     const { csrfToken } = tokenResponse.body;
-    const cookies = tokenResponse.headers['set-cookie'];
+    const cookies = tokenResponse.headers["set-cookie"];
 
     // Then use the token to disable health
     const response = await request(app)
       .get("/disable-health")
-      .set('Cookie', cookies)
-      .set('X-CSRF-Token', csrfToken);
+      .set("Cookie", cookies)
+      .set("X-CSRF-Token", csrfToken);
 
     expect(response.status).toBe(200);
     expect(response.text).toBe("Health disabled");
@@ -31,13 +31,13 @@ describe("Express App Health Endpoints", () => {
     // First, get a CSRF token
     const tokenResponse = await request(app).get("/csrf-token");
     const { csrfToken } = tokenResponse.body;
-    const cookies = tokenResponse.headers['set-cookie'];
+    const cookies = tokenResponse.headers["set-cookie"];
 
     // Disable health using CSRF token
     await request(app)
       .get("/disable-health")
-      .set('Cookie', cookies)
-      .set('X-CSRF-Token', csrfToken);
+      .set("Cookie", cookies)
+      .set("X-CSRF-Token", csrfToken);
 
     // Then check health status
     const response = await request(app).get("/health");
