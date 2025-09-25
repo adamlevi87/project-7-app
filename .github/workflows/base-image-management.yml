@@ -185,8 +185,9 @@ jobs:
           echo "🏷️ Tagging for private registry..."
           #docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}
+
           docker tag ${{ steps.parse_inputs.outputs.base_image_name }}@${{ inputs.base_image_manifest }} \
-            ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}
+            "${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ inputs.target_version }}""
           
           # Parse the static labels
           IFS='|' read -ra STATIC_LABELS <<< "${{ steps.define_labels.outputs.static_labels }}"
