@@ -551,7 +551,7 @@ jobs:
             -d "{
               \"ref\": \"${{ inputs.target_branch }}\",
               \"inputs\": {
-                \"skip_stage_0\": \"true\"
+                \"skip_stage_6\": \"false\"
               }
             }"
           
