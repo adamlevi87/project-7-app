@@ -48,30 +48,33 @@ jobs:
         with:
           ref: ${{ inputs.target_branch }}
       
+      ##### Currently Staging and Main use the same definitions as Dev
+      # because the environment setup is handled in terraform and
+      # i did not want to create multiple environments
       - name: Set environment variables
         run: |
           case "${{ github.event.inputs.target_branch }}" in
-            dev)
+            dev|staging|main)
               echo "AWS_REGION=${{ vars.AWS_REGION_TF_DEV }}" >> $GITHUB_ENV
               echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_DEV }}" >> $GITHUB_ENV
               echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_DEV }}" >> $GITHUB_ENV
               echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_DEV }}" >> $GITHUB_ENV
               echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_DEV }}" >> $GITHUB_ENV
               ;;
-            staging)
-              echo "AWS_REGION=${{ vars.AWS_REGION_TF_STAGING }}" >> $GITHUB_ENV
-              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_STAGING }}" >> $GITHUB_ENV
-              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_STAGING }}" >> $GITHUB_ENV
-              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_STAGING }}" >> $GITHUB_ENV
-              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_STAGING }}" >> $GITHUB_ENV
-              ;;
-            main)
-              echo "AWS_REGION=${{ vars.AWS_REGION_TF_PROD }}" >> $GITHUB_ENV
-              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_PROD }}" >> $GITHUB_ENV
-              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_PROD }}" >> $GITHUB_ENV
-              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_PROD }}" >> $GITHUB_ENV
-              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_PROD }}" >> $GITHUB_ENV
-              ;;
+            # staging)
+            #   echo "AWS_REGION=${{ vars.AWS_REGION_TF_STAGING }}" >> $GITHUB_ENV
+            #   echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_STAGING }}" >> $GITHUB_ENV
+            #   echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_STAGING }}" >> $GITHUB_ENV
+            #   echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_STAGING }}" >> $GITHUB_ENV
+            #   echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_STAGING }}" >> $GITHUB_ENV
+            #   ;;
+            # main)
+            #   echo "AWS_REGION=${{ vars.AWS_REGION_TF_PROD }}" >> $GITHUB_ENV
+            #   echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_PROD }}" >> $GITHUB_ENV
+            #   echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_PROD }}" >> $GITHUB_ENV
+            #   echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_PROD }}" >> $GITHUB_ENV
+            #   echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_PROD }}" >> $GITHUB_ENV
+            #   ;;
           esac
 
       - name: Determine build strategy
@@ -195,22 +198,22 @@ jobs:
           docker build -t ${{ steps.meta.outputs.image_uri }} .
           echo "✅ Image built"
 
-      - name: Debug build variables  
-        run: |
-          cat > debug-vars.txt << EOF
-          #GITHUB_SHA: ${{ github.sha }}
-          #GITHUB_RUN_ID: ${{ github.run_id }}
-          #TAG: ${{ steps.meta.outputs.tag }}
-          IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
-          #IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
-          EOF
-          ls -la debug-vars.txt
+      # - name: Debug build variables  
+      #   run: |
+      #     cat > debug-vars.txt << EOF
+      #     #GITHUB_SHA: ${{ github.sha }}
+      #     #GITHUB_RUN_ID: ${{ github.run_id }}
+      #     #TAG: ${{ steps.meta.outputs.tag }}
+      #     IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
+      #     #IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
+      #     EOF
+      #     ls -la debug-vars.txt
 
-      - name: Upload debug artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-vars-${{ github.run_id }}
-          path: it-works-on-my-machine/debug-vars.txt
+      # - name: Upload debug artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: debug-vars-${{ github.run_id }}
+      #     path: it-works-on-my-machine/debug-vars.txt
 
       # - name: Debug content tag
       #   if: ${{ steps.push-decision.outputs.should_push == 'true' }}
