@@ -13,6 +13,15 @@ on:
   #     - 'it-works-on-my-machine/**'
   workflow_dispatch:
     inputs:
+      target_branch:
+        description: 'Target branch (dev/staging/main)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging  
+          - main
       base_image_with_digest:
         description: 'Base image with multi-arch manifest digest'
         required: false
@@ -39,6 +48,16 @@ on:
       skip_stage_0:
         description: 'Skip Stage 0 (Base Image Management)'
         required: false
+        default: true
+        type: boolean
+      skip_stage_1:
+        description: 'Skip Stage 1 (handling dockerfile)'
+        required: false
+        default: false
+        type: boolean
+      skip_stage_2:
+        description: 'Skip Stage 2 (Trigger CI)'
+        required: false
         default: false
         type: boolean
 env:
@@ -51,6 +70,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_branch }}
       
       ############################## Stage 0: Base Image Management & Supply Chain Security
       ############### Input Parsing and Validation
@@ -258,7 +279,299 @@ jobs:
           rm /tmp/Dockerfile.labels
           
           echo "✅ Base image management completed with verified public image and private registry caching"
-    #####
-    ###############
-  ##############################
+      #####
+      ###############
+      ##############################
+  stage1-handling-dockerfile:
+    runs-on: ubuntu-latest
+    needs: stage0-base-image-management
+    permissions:
+      contents: write        # Required to create branches and commit
+      pull-requests: write   # Required to create and merge PRs
+      actions: read         # Standard read access
+    if: ${{ inputs.skip_stage1 != true && !failure() }}
+    outputs:
+      changes_required: ${{ steps.dockerfile_check.outputs.changes_required }}
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_branch }}
+      
+      - name: Resolve target version (duplicate from stage0)
+        id: resolve_version
+        run: |
+          if [ "${{ inputs.target_version }}" = "latest" ]; then
+            echo "🔍 Resolving 'latest' to actual date tag..."
+            
+            # Get all tags and find the most recent date tag
+            LATEST_DATE_TAG=$(curl -s "https://registry-1.docker.io/v2/${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}/tags/list" \
+              -H "Authorization: Bearer $(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:pull" | jq -r .token)" \
+              | jq -r '.tags[]' | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' | sort -r | head -1 2>/dev/null || echo "")
+            
+            if [ -n "$LATEST_DATE_TAG" ]; then
+              RESOLVED_VERSION="$LATEST_DATE_TAG"
+              echo "✅ Found latest date tag: $LATEST_DATE_TAG"
+            else
+              RESOLVED_VERSION=$(date -u +%Y-%m-%d)
+              echo "ℹ️ No date tags found, using today's date: $RESOLVED_VERSION"
+            fi
+          else
+            RESOLVED_VERSION="${{ inputs.target_version }}"
+            echo "✅ Using specified version: $RESOLVED_VERSION"
+          fi
+          
+          echo "resolved_version=$RESOLVED_VERSION" >> $GITHUB_OUTPUT
+          echo "🎯 Target version resolved to: $RESOLVED_VERSION"
+      
+      ############################## Stage 1: Dockerfile Validation & Update Check
+      ############### Dockerfile Analysis
+      ##### Check all FROM statements in Dockerfile to see if they match expected private registry
+      ##### Determines if Dockerfile needs updating to use the resolved base image version
+      - name: Check Dockerfile FROM statements
+        id: dockerfile_check
+        run: |
+          echo "🔍 Checking Dockerfile FROM statements..."
+          
+          DOCKERFILE_PATH="it-works-on-my-machine/Dockerfile"
+          EXPECTED_BASE_IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
+          
+          echo "📝 Updating all FROM statements to use: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
+
+          if [ ! -f "$DOCKERFILE_PATH" ]; then
+            echo "❌ ERROR: Dockerfile not found at $DOCKERFILE_PATH"
+            exit 1
+          fi
+          
+          # Get all FROM statements
+          FROM_STATEMENTS=$(grep "^FROM" "$DOCKERFILE_PATH" || echo "")
+          
+          if [ -z "$FROM_STATEMENTS" ]; then
+            echo "❌ ERROR: No FROM statements found in Dockerfile"
+            exit 1
+          fi
+          
+          echo "📋 Found FROM statements:"
+          echo "$FROM_STATEMENTS"
+          echo ""
+          echo "📋 Expected base image:"
+          echo "$EXPECTED_BASE_IMAGE"
+          echo ""
+          
+          # Check if any FROM statement doesn't match expected
+          CHANGES_REQUIRED=false
+          while IFS= read -r from_line; do
+            # Extract just the image part (before any AS clause)
+            IMAGE_PART=$(echo "$from_line" | awk '{print $2}')
+            
+            if [[ "$IMAGE_PART" != "$EXPECTED_BASE_IMAGE" ]]; then
+              echo "❌ FROM mismatch found: $from_line (expected base: $EXPECTED_BASE_IMAGE)"
+              CHANGES_REQUIRED=true
+            else
+              echo "✅ FROM statement matches: $from_line"
+            fi
+          done <<< "$FROM_STATEMENTS"
+          
+          if [ "$CHANGES_REQUIRED" = true ]; then
+            echo "🔄 Dockerfile changes required"
+            echo "changes_required=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Dockerfile is up to date"
+            echo "changes_required=false" >> $GITHUB_OUTPUT
+          fi
+      #####
+      
+      ############### Create Branch and Update Dockerfile
+      ##### Create a new branch from target branch and update Dockerfile FROM statements
+      ##### Only runs when changes are required to avoid unnecessary operations
+      - name: Create branch and update Dockerfile
+        if: steps.dockerfile_check.outputs.changes_required == 'true'
+        id: update_dockerfile
+        run: |
+          echo "🌿 Creating branch and updating Dockerfile..."
+          
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action - Base Image Update"
+          
+          # Create unique branch name
+          BRANCH_NAME="base-image-update-${{ inputs.target_branch }}-$(date +%Y%m%d-%H%M%S)"
+          echo "branch_name=$BRANCH_NAME"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          
+          # Create and switch to new branch
+          git checkout -b "$BRANCH_NAME"
+          
+          # Update Dockerfile - replace all FROM statements
+          DOCKERFILE_PATH="it-works-on-my-machine/Dockerfile"
+          EXPECTED_BASE_IMAGE="${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}"
+          
+          echo "📝 Updating all FROM statements to: $EXPECTED_BASE_IMAGE"
+          
+          # Use sed to replace FROM statements while preserving AS clauses
+          sed -i "s|${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:[^ ]*|$EXPECTED_BASE_IMAGE|g" "$DOCKERFILE_PATH"
+          
+          #echo "📋 Dockerfile content after sed:"
+          #cat "$DOCKERFILE_PATH"
+
+          # Verify changes
+          echo "📋 Updated Dockerfile FROM statements:"
+          grep "^FROM" "$DOCKERFILE_PATH"
+          
+          # Stage and commit changes
+          git add "$DOCKERFILE_PATH"
+          git commit -m "chore: update base image to ${{ steps.resolve_version.outputs.resolved_version }}
+
+          - Updated by base-image-management workflow
+          - Target branch: ${{ inputs.target_branch }}
+          - Base image version: ${{ steps.resolve_version.outputs.resolved_version }}
+          - Updated all FROM statements in $DOCKERFILE_PATH"
+          
+          # Push branch
+          git push origin "$BRANCH_NAME"
+          
+          echo "✅ Branch created and Dockerfile updated"
+      #####
+
+      ############### Create Pull Request
+      ##### Create PR to merge Dockerfile changes back to target branch
+      ##### Only runs when Dockerfile was actually updated
+      - name: Create Pull Request
+        if: steps.dockerfile_check.outputs.changes_required == 'true'
+        id: create_pr
+        run: |
+          echo "🔄 Creating Pull Request..."
+          
+          BRANCH_NAME="${{ steps.update_dockerfile.outputs.branch_name }}"
+          PR_TITLE="Base Image: Update ${{ inputs.target_branch }} to ${{ steps.resolve_version.outputs.resolved_version }}"
+          
+          # Create PR body in a temp file to handle newlines properly
+          cat > /tmp/pr_body.txt << 'EOF'
+          Automated base image update for ${{ inputs.target_branch }} branch
+
+          **Changes:**
+          - Updated Dockerfile base image to `${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}`
+          - All FROM statements updated to use private registry
+
+          **Generated by:** base-image-management workflow
+          **Target Branch:** ${{ inputs.target_branch }}
+          **Base Image Version:** ${{ steps.resolve_version.outputs.resolved_version }}
+          EOF
+
+          # Create PR using jq to properly format JSON
+          PR_RESPONSE=$(jq -n \
+            --arg title "$PR_TITLE" \
+            --arg head "$BRANCH_NAME" \
+            --arg base "${{ inputs.target_branch }}" \
+            --rawfile body /tmp/pr_body.txt \
+            '{title: $title, head: $head, base: $base, body: $body}' | \
+            curl -s -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls" \
+            -d @-)
+          
+          # Extract PR number
+          PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number')
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          
+          if [ "$PR_NUMBER" != "null" ] && [ -n "$PR_NUMBER" ]; then
+            echo "✅ Created PR #${PR_NUMBER}"
+          else
+            echo "❌ Failed to create PR. Response: $PR_RESPONSE"
+            exit 1
+          fi
+      #####
+
+      ############### Auto-merge Logic
+      ##### Auto-merge PR for dev/staging, leave open for main/prod
+      ##### Based on target branch to implement different approval workflows
+      - name: Auto-merge PR
+        if: steps.dockerfile_check.outputs.changes_required == 'true' && (inputs.target_branch == 'dev' || inputs.target_branch == 'staging')
+        run: |
+          echo "🔀 Auto-merging PR for ${{ inputs.target_branch }} branch..."
+          
+          PR_NUMBER="${{ steps.create_pr.outputs.pr_number }}"
+          
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            echo "⏳ Waiting for PR to be ready for merge..."
+            sleep 10
+            
+            # Auto-merge using GitHub CLI
+            gh pr merge $PR_NUMBER \
+              --repo ${{ github.repository }} \
+              --squash \
+              --delete-branch \
+              || {
+                echo "❌ Failed to auto-merge PR #$PR_NUMBER"
+                echo "PR will remain open for manual review"
+              }
+            
+            echo "✅ Auto-merged PR #${PR_NUMBER} for ${{ inputs.target_branch }}"
+          else
+            echo "❌ No PR found to auto-merge"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      
+      ############### Manual Review Notice
+      ##### Notify that manual review is required for production branches
+      - name: Manual Review Notice
+        if: steps.dockerfile_check.outputs.changes_required == 'true' && (inputs.target_branch == 'main')
+        run: |
+          echo "📋 Manual review required for ${{ inputs.target_branch }} branch"
+          echo "PR #${{ steps.create_pr.outputs.pr_number }} created and awaiting review"
+          echo "This is intentional for production safety"
+      #####
+
+      ############### Summary
+      - name: Stage 1 Summary
+        if: always()
+        run: |
+          echo "📊 Stage 1: Dockerfile Check Summary"
+          echo "================================="
+          echo "Target Branch: ${{ inputs.target_branch }}"
+          echo "Resolved Version: ${{ steps.resolve_version.outputs.resolved_version }}"
+          echo "Changes Required: ${{ steps.dockerfile_check.outputs.changes_required }}"
+          echo "================================="
+      #####
+  stage2-trigger-ci:
+    runs-on: ubuntu-latest
+    needs: stage1-handling-dockerfile
+    if: ${{ inputs.skip_stage_2 != true && !failure() && (inputs.skip_stage_1 == true || (needs.stage1-handling-dockerfile.outputs.changes_required == 'true' && inputs.target_branch != 'main')) }}
     
+    steps:
+      - name: Trigger Main CI Workflow
+        run: |
+          echo "🚀 Triggering main CI workflow on ${{ inputs.target_branch }} branch..."
+          
+          curl -X POST \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/tests-and-validations.yml/dispatches" \
+            -d "{
+              \"ref\": \"${{ inputs.target_branch }}\",
+              \"inputs\": {
+                \"target_branch\": \"${{ inputs.target_branch }}\",
+                \"skip_stage_6\": \"false\"
+              }
+            }"
+          
+          echo "✅ Main CI workflow triggered for ${{ inputs.target_branch }}"
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "📊 Stage 2: CI Trigger Summary"
+          echo "=============================="
+          echo "Target Branch: ${{ inputs.target_branch }}"
+          echo "Changes Required: ${{ needs.stage1-handling-dockerfile.outputs.changes_required }}"
+          if [ "${{ inputs.target_branch }}" == "main" ] && [ "${{ needs.stage1-handling-dockerfile.outputs.changes_required }}" == "true" ]; then
+            echo "CI Workflow Triggered: ❌ (Production - Manual merge required)"
+          elif [ "${{ needs.stage1-handling-dockerfile.outputs.changes_required }}" == "true" ]; then
+            echo "CI Workflow Triggered: ✅"
+          else
+            echo "CI Workflow Triggered: ❌ (No changes required)"
+          fi
+          echo "=============================="
