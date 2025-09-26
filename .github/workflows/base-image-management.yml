@@ -553,6 +553,7 @@ jobs:
             -d "{
               \"ref\": \"${{ inputs.target_branch }}\",
               \"inputs\": {
+                \"target_branch\": \"${{ inputs.target_branch }}\",
                 \"skip_stage_6\": \"false\"
               }
             }"
