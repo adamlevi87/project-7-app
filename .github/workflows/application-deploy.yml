@@ -4,15 +4,15 @@ name: Application - Build and Deploy to ECR
 on:
   workflow_dispatch:
     inputs:
-      env:
-        description: "Environment to manage"
+      target_branch:
+        description: 'Target branch (dev/staging/main)'
         required: true
-        default: dev
+        default: 'dev'
         type: choice
         options:
           - dev
-          - staging
-          - prod
+          - staging  
+          - main
       action:
         description: "Action to perform"
         required: true
@@ -43,14 +43,14 @@ jobs:
       contents: read
       id-token: write  # Required for OIDC
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-        # with:
-        #   fetch-depth: 2  # Need previous commit for change detection
+        with:
+          ref: ${{ inputs.target_branch }}
       
       - name: Set environment variables
         run: |
-          case "${{ github.event.inputs.env }}" in
+          case "${{ github.event.inputs.target_branch }}" in
             dev)
               echo "AWS_REGION=${{ vars.AWS_REGION_TF_DEV }}" >> $GITHUB_ENV
               echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_DEV }}" >> $GITHUB_ENV
@@ -65,7 +65,7 @@ jobs:
               echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_STAGING }}" >> $GITHUB_ENV
               echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_STAGING }}" >> $GITHUB_ENV
               ;;
-            prod)
+            main)
               echo "AWS_REGION=${{ vars.AWS_REGION_TF_PROD }}" >> $GITHUB_ENV
               echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_PROD }}" >> $GITHUB_ENV
               echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_PROD }}" >> $GITHUB_ENV
@@ -360,7 +360,7 @@ jobs:
                 "branch": "${{ github.ref_name }}",
                 "commit": "${{ github.sha }}",
                 "workflow": "${{ github.workflow }}",
-                "environment": "${{ github.event.inputs.env }}",
+                "environment": "${{ github.event.inputs.target_branch }}",
                 "runId": "${{ github.run_id }}"
               }
             },
@@ -440,7 +440,7 @@ jobs:
         env:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
-          ENVIRONMENT: ${{ github.event.inputs.env }}
+          ENVIRONMENT: ${{ github.event.inputs.target_branch }}
           # TARGET_DIGEST is the digest from this workflow
           # it will be the latest digest from the ECR, if a push was made or not
           # this needs to be compared to the digest in GitOps
@@ -466,7 +466,7 @@ jobs:
         env:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
-          ENVIRONMENT: ${{ github.event.inputs.env }}
+          ENVIRONMENT: ${{ github.event.inputs.target_branch }}
           TARGET_DIGEST: ${{ steps.final-digest.outputs.digest_only }}
         run: |
           cd gitops-repo
@@ -526,7 +526,7 @@ jobs:
       - name: Build Summary
         run: |
           echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ github.event.inputs.env }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Strategy:** ${{ steps.build-strategy.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
           

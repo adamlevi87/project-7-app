@@ -1058,7 +1058,7 @@ jobs:
             -d "{
               \"ref\": \"${{ inputs.target_branch }}\",
               \"inputs\": {
-                \"env\": \"${{ inputs.target_branch }}\",
+                \"target_branch\": \"${{ inputs.target_branch }}\",
                 \"action\": \"build-and-push\",
                 \"auto_merge\": \"true\",
                 \"force_cosign\": \"false\"
