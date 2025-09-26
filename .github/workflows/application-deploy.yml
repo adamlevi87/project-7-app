@@ -453,7 +453,7 @@ jobs:
           git clone https://x-access-token:${GH_TOKEN}@github.com/${GITOPS_REPO}.git gitops-repo
           cd gitops-repo
           
-          GITOPS_DIGEST=$(grep 'digest:' environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml | sed 's/.*digest: "\(.*\)"/\1/')
+          GITOPS_DIGEST=$(grep 'digest:' environments/manifests/frontend/digest-values.yaml | sed 's/.*digest: "\(.*\)"/\1/')
           
           if [ "$GITOPS_DIGEST" == "$TARGET_DIGEST" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
@@ -481,8 +481,8 @@ jobs:
           
           git checkout -b "$BRANCH_NAME"
           
-          sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml
-          git add environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml
+          sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" environments/manifests/frontend/digest-values.yaml
+          git add environments/manifests/frontend/digest-values.yaml
           git commit -m "Update frontend digest for ${ENVIRONMENT}: ${TARGET_DIGEST}"
           git push origin "$BRANCH_NAME"
           
