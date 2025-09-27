@@ -13,6 +13,7 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
       - name: cosign-verify
         image: gcr.io/projectsigstore/cosign:v2.6.0
