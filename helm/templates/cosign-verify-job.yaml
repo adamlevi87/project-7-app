@@ -32,11 +32,10 @@ spec:
         - |
           cat /shared/token | docker login --username AWS --password-stdin $(cat /shared/registry)
           cp ~/.docker/config.json /shared/
+          chmod 644 /shared/config.json
         volumeMounts:
         - name: shared-data
           mountPath: /shared
-        - name: docker-config
-          mountPath: /root/.docker
       containers:
       - name: cosign-verify
         image: gcr.io/projectsigstore/cosign:v2.6.0
@@ -55,7 +54,5 @@ spec:
           mountPath: /shared
       volumes:
       - name: shared-data
-        emptyDir: {}
-      - name: docker-config
         emptyDir: {}
 {{- end }}
