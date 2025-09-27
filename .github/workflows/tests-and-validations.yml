@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: "CI - Tests and Validations"
+name: "CI - Step 2 - Tests and Validations"
 
 on:
   # push:

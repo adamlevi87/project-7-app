@@ -1,6 +1,6 @@
 # .github/workflows/application-deploy.yml
 
-name: "CI - Application Build and Deploy to ECR"
+name: "CI - Step 3 - Application Build and Deploy to ECR"
 on:
   workflow_dispatch:
     inputs:
