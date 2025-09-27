@@ -444,23 +444,31 @@ jobs:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
           ENVIRONMENT: ${{ github.event.inputs.target_branch }}
-          # TARGET_DIGEST is the digest from this workflow
-          # it will be the latest digest from the ECR, if a push was made or not
-          # this needs to be compared to the digest in GitOps
           TARGET_DIGEST: ${{ steps.final-digest.outputs.digest_only }}
         run: |
           rm -rf gitops-repo
           git clone https://x-access-token:${GH_TOKEN}@github.com/${GITOPS_REPO}.git gitops-repo
           cd gitops-repo
           
-          GITOPS_DIGEST=$(grep 'digest:' environments/manifests/frontend/digest-values.yaml | sed 's/.*digest: "\(.*\)"/\1/')
+          # Checkout the target branch
+          echo "Checking out target branch: ${ENVIRONMENT}"
+          git checkout "${ENVIRONMENT}"
+          
+          # Check if digest file exists and get current digest
+          DIGEST_FILE="manifests/frontend/digest-values.yaml"
+          if [ -f "$DIGEST_FILE" ]; then
+            GITOPS_DIGEST=$(grep 'digest:' "$DIGEST_FILE" | sed 's/.*digest: "\(.*\)"/\1/' || echo "none")
+          else
+            GITOPS_DIGEST="none"
+            echo "📁 $DIGEST_FILE doesn't exist yet, will create it"
+          fi
           
           if [ "$GITOPS_DIGEST" == "$TARGET_DIGEST" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "✅ GitOps digest unchanged: gitops: $GITOPS_DIGEST vs $TARGET_DIGEST"
           else
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "🔄 GitOps digest will change: digest to be replace: $GITOPS_DIGEST → digest to be replaced by: $TARGET_DIGEST"
+            echo "🔄 GitOps digest will change: gitops_digest: $GITOPS_DIGEST → target_digest: $TARGET_DIGEST"
           fi
 
       - name: Update GitOps repository
@@ -479,26 +487,44 @@ jobs:
           BRANCH_NAME="frontend-update-$(date +%Y%m%d-%H%M%S)"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           
+          # Create branch from target branch
           git checkout -b "$BRANCH_NAME"
           
-          sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" environments/manifests/frontend/digest-values.yaml
-          git add environments/manifests/frontend/digest-values.yaml
+          # Update or create digest file
+          DIGEST_FILE="manifests/frontend/digest-values.yaml"
+          mkdir -p "$(dirname "$DIGEST_FILE")"
+
+          if [ -f "$DIGEST_FILE" ]; then
+            # Update existing file
+            sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" "$DIGEST_FILE"
+          else
+            # Create new file
+            cat > "$DIGEST_FILE" << EOF
+            ## Frontend digest values
+            # managed by the application repo workflow (build-and-push action or update-digest-only)
+
+            image:
+              digest: "${TARGET_DIGEST}"
+            EOF
+          fi
+
+          git add "$DIGEST_FILE"
           git commit -m "Update frontend digest for ${ENVIRONMENT}: ${TARGET_DIGEST}"
           git push origin "$BRANCH_NAME"
           
-          # Create PR and capture response
+          # Create PR targeting the correct branch
           PR_RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${GITOPS_REPO}/pulls" \
-            -d "{\"title\":\"Frontend: Update ${ENVIRONMENT} digest\",\"head\":\"${BRANCH_NAME}\",\"base\":\"main\",\"body\":\"Automated digest update for ${ENVIRONMENT} environment\"}")
+            -d "{\"title\":\"Frontend: Update ${ENVIRONMENT} digest\",\"head\":\"${BRANCH_NAME}\",\"base\":\"${ENVIRONMENT}\",\"body\":\"Automated digest update for ${ENVIRONMENT} environment\"}")
           
           # Extract PR number
           PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number')
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           
           if [ "$PR_NUMBER" != "null" ] && [ -n "$PR_NUMBER" ]; then
-            echo "✅ Created PR #${PR_NUMBER}"
+            echo "✅ Created PR #${PR_NUMBER} targeting ${ENVIRONMENT} branch"
           else
             echo "❌ Failed to create PR. Response: $PR_RESPONSE"
             exit 1
