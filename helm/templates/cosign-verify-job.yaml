@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: cosign-verify-{{ include "frontend.fullname" . }}
+  name: cosign-verify-{{ include "common.fullname" . }}
   namespace: {{ .Release.Namespace }}
   annotations:
     argocd.argoproj.io/hook: PreSync
