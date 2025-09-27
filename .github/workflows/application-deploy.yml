@@ -500,12 +500,12 @@ jobs:
           else
             # Create new file
             cat > "$DIGEST_FILE" << EOF
-          ## Frontend digest values
-          # managed by the application repo workflow (build-and-push action or update-digest-only)
+            ## Frontend digest values
+            # managed by the application repo workflow (build-and-push action or update-digest-only)
 
-          image:
-            digest: "${TARGET_DIGEST}"
-            EOF
+            image:
+              digest: "${TARGET_DIGEST}"
+              EOF
           fi
 
           git add "$DIGEST_FILE"
