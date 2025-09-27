@@ -529,7 +529,7 @@ jobs:
           fi
       
       - name: Auto-merge GitOps PR
-        if: ${{ steps.check-gitops-changes.outputs.changed == 'true' && github.event.inputs.auto_merge == 'true' }}
+        if: ${{ steps.check-gitops-changes.outputs.changed == 'true' && github.event.inputs.auto_merge == 'true' && github.event.inputs.target_branch != 'main' }}
         env:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
