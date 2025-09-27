@@ -13,13 +13,14 @@ spec:
   template:
     spec:
       restartPolicy: Never
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: {{ .Values.serviceAccount.name }}  # <-- ADD THIS LINE
       containers:
       - name: cosign-verify
         image: gcr.io/projectsigstore/cosign:v2.6.0
         command:
         - cosign
         - verify
+        - --attachment-tag-prefix=SIGNATURE-
         - --certificate-identity-regexp={{ .Values.cosign.certificateIdentity }}
         - --certificate-oidc-issuer={{ .Values.cosign.oidcIssuer }}
         - "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
