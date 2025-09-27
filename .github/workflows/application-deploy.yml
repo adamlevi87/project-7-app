@@ -499,13 +499,15 @@ jobs:
             sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" "$DIGEST_FILE"
           else
             # Create new file
-            cat > "$DIGEST_FILE" << EOF
+            cat > "$DIGEST_FILE" << 'ENDFILE'
           ## Frontend digest values
           # managed by the application repo workflow (build-and-push action or update-digest-only)
 
           image:
-            digest: "${TARGET_DIGEST}"
-            EOF
+            digest: "PLACEHOLDER_DIGEST"
+          ENDFILE
+            # Then replace the placeholder
+            sed -i "s|PLACEHOLDER_DIGEST|${TARGET_DIGEST}|g" "$DIGEST_FILE"
           fi
 
           git add "$DIGEST_FILE"
