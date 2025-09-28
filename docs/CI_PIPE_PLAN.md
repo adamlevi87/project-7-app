@@ -1,4 +1,4 @@
-## CI Pipeline Plan for `it-works-on-my-machine`
+# CI Pipeline Plan for `it-works-on-my-machine`
 
 ## 🎯 **Project Context**
 - Node.js Express microservice
