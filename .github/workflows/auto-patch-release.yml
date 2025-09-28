@@ -179,3 +179,29 @@ jobs:
             --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Auto Patch Summary
+        if: always()
+        run: |
+          echo "## 🏷️ Auto Patch Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "=================================" >> $GITHUB_STEP_SUMMARY
+          echo "**Event Type:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Strategy:** ${{ steps.strategy.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.strategy.outputs.skip_processing }}" == "true" ]; then
+            echo "**Processing:** Skipped (merge commit detected)" >> $GITHUB_STEP_SUMMARY
+            echo "**Reason:** PR closed event will handle release" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Processing:** Completed" >> $GITHUB_STEP_SUMMARY
+            echo "**Version Created:** ${{ steps.new-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ steps.strategy.outputs.strategy }}" == "release" ]; then
+              echo "**Release Type:** Manual release workflow" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ github.event_name }}" == "pull_request" ]; then
+              echo "**Release Type:** PR merge" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "**Release Type:** Direct push" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+          
+          echo "=================================" >> $GITHUB_STEP_SUMMARY
