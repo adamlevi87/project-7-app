@@ -331,7 +331,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.target_branch }}
+        ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
     
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
@@ -438,7 +438,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.target_branch }}
+        ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
     
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
@@ -596,7 +596,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_branch }}
+          ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
       
       - name: Setup Node.js
         uses: ./.github/actions/setup-node
@@ -741,7 +741,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.target_branch }}
+        ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
     
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
