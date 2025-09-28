@@ -13,6 +13,10 @@ on:
           - dev
           - staging  
           - main
+      tag:
+        description: 'Git tag to deploy (for main branch only)'
+        required: false
+        type: string
       action:
         description: "Action to perform"
         required: true
@@ -46,7 +50,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_branch }}
+          ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
       
       ##### Currently Staging and Main use the same definitions as Dev
       # because the environment setup is handled in terraform and
