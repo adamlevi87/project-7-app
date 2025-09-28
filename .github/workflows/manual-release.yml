@@ -142,3 +142,27 @@ jobs:
           echo "Auto-merge enabled for staging PR"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Manual Release Summary
+        if: always()
+        run: |
+          echo "## 🚀 Manual Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "=============================" >> $GITHUB_STEP_SUMMARY
+          echo "**Source Branch:** ${{ github.event.inputs.source_branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Target Branch:** ${{ github.event.inputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event.inputs.target_branch }}" == "main" ]; then
+            echo "**Version Bump:** ${{ github.event.inputs.version_bump }}" >> $GITHUB_STEP_SUMMARY
+            echo "**New Version:** ${{ steps.new-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "**Branch Created:** ${{ steps.create-branch.outputs.branch_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**PR Created:** #${{ steps.create-pr.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event.inputs.target_branch }}" == "staging" ]; then
+            echo "**Auto-merge:** Enabled (staging)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Auto-merge:** Manual review required (main)" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "=============================" >> $GITHUB_STEP_SUMMARY
