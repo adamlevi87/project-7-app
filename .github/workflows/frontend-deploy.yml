@@ -1,18 +1,18 @@
-# .github/workflows/application-deploy.yml
+# .github/workflows/frontend-deploy.yml
 
-name: "CI - Step 3 - Application Build and Deploy to ECR"
+name: Frontend - Build and Deploy to ECR
 on:
   workflow_dispatch:
     inputs:
-      target_branch:
-        description: 'Target branch (dev/staging/main)'
+      env:
+        description: "Environment to manage"
         required: true
-        default: 'dev'
+        default: dev
         type: choice
         options:
           - dev
-          - staging  
-          - main
+          - staging
+          - prod
       action:
         description: "Action to perform"
         required: true
@@ -43,38 +43,35 @@ jobs:
       contents: read
       id-token: write  # Required for OIDC
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.target_branch }}
+        # with:
+        #   fetch-depth: 2  # Need previous commit for change detection
       
-      ##### Currently Staging and Main use the same definitions as Dev
-      # because the environment setup is handled in terraform and
-      # i did not want to create multiple environments
       - name: Set environment variables
         run: |
-          case "${{ github.event.inputs.target_branch }}" in
-            dev|staging|main)
+          case "${{ github.event.inputs.env }}" in
+            dev)
               echo "AWS_REGION=${{ vars.AWS_REGION_TF_DEV }}" >> $GITHUB_ENV
               echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_DEV }}" >> $GITHUB_ENV
               echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_DEV }}" >> $GITHUB_ENV
               echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_DEV }}" >> $GITHUB_ENV
               echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_DEV }}" >> $GITHUB_ENV
               ;;
-            # staging)
-            #   echo "AWS_REGION=${{ vars.AWS_REGION_TF_STAGING }}" >> $GITHUB_ENV
-            #   echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_STAGING }}" >> $GITHUB_ENV
-            #   echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_STAGING }}" >> $GITHUB_ENV
-            #   echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_STAGING }}" >> $GITHUB_ENV
-            #   echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_STAGING }}" >> $GITHUB_ENV
-            #   ;;
-            # main)
-            #   echo "AWS_REGION=${{ vars.AWS_REGION_TF_PROD }}" >> $GITHUB_ENV
-            #   echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_PROD }}" >> $GITHUB_ENV
-            #   echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_PROD }}" >> $GITHUB_ENV
-            #   echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_PROD }}" >> $GITHUB_ENV
-            #   echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_PROD }}" >> $GITHUB_ENV
-            #   ;;
+            staging)
+              echo "AWS_REGION=${{ vars.AWS_REGION_TF_STAGING }}" >> $GITHUB_ENV
+              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_STAGING }}" >> $GITHUB_ENV
+              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_STAGING }}" >> $GITHUB_ENV
+              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_STAGING }}" >> $GITHUB_ENV
+              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_STAGING }}" >> $GITHUB_ENV
+              ;;
+            prod)
+              echo "AWS_REGION=${{ vars.AWS_REGION_TF_PROD }}" >> $GITHUB_ENV
+              echo "AWS_ROLE_TO_ASSUME=${{ secrets.AWS_ROLE_TO_ASSUME_TF_PROD }}" >> $GITHUB_ENV
+              echo "ECR_REPOSITORY_FRONTEND=${{ secrets.ECR_REPOSITORY_FRONTEND_TF_PROD }}" >> $GITHUB_ENV
+              echo "GH_TOKEN=${{ secrets.TOKEN_GITHUB_TF_PROD }}" >> $GITHUB_ENV
+              echo "GITOPS_REPO=${{ vars.GITOPS_REPO_TF_PROD }}" >> $GITHUB_ENV
+              ;;
           esac
 
       - name: Determine build strategy
@@ -198,22 +195,22 @@ jobs:
           docker build -t ${{ steps.meta.outputs.image_uri }} .
           echo "✅ Image built"
 
-      # - name: Debug build variables  
-      #   run: |
-      #     cat > debug-vars.txt << EOF
-      #     #GITHUB_SHA: ${{ github.sha }}
-      #     #GITHUB_RUN_ID: ${{ github.run_id }}
-      #     #TAG: ${{ steps.meta.outputs.tag }}
-      #     IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
-      #     #IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
-      #     EOF
-      #     ls -la debug-vars.txt
+      - name: Debug build variables  
+        run: |
+          cat > debug-vars.txt << EOF
+          #GITHUB_SHA: ${{ github.sha }}
+          #GITHUB_RUN_ID: ${{ github.run_id }}
+          #TAG: ${{ steps.meta.outputs.tag }}
+          IMAGE_URI: ${{ steps.meta.outputs.image_uri }}
+          #IMAGE_BASE: ${{ env.ECR_REPOSITORY_FRONTEND }}
+          EOF
+          ls -la debug-vars.txt
 
-      # - name: Upload debug artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: debug-vars-${{ github.run_id }}
-      #     path: it-works-on-my-machine/debug-vars.txt
+      - name: Upload debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-vars-${{ github.run_id }}
+          path: it-works-on-my-machine/debug-vars.txt
 
       # - name: Debug content tag
       #   if: ${{ steps.push-decision.outputs.should_push == 'true' }}
@@ -363,7 +360,7 @@ jobs:
                 "branch": "${{ github.ref_name }}",
                 "commit": "${{ github.sha }}",
                 "workflow": "${{ github.workflow }}",
-                "environment": "${{ github.event.inputs.target_branch }}",
+                "environment": "${{ github.event.inputs.env }}",
                 "runId": "${{ github.run_id }}"
               }
             },
@@ -443,32 +440,24 @@ jobs:
         env:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
-          ENVIRONMENT: ${{ github.event.inputs.target_branch }}
+          ENVIRONMENT: ${{ github.event.inputs.env }}
+          # TARGET_DIGEST is the digest from this workflow
+          # it will be the latest digest from the ECR, if a push was made or not
+          # this needs to be compared to the digest in GitOps
           TARGET_DIGEST: ${{ steps.final-digest.outputs.digest_only }}
         run: |
           rm -rf gitops-repo
           git clone https://x-access-token:${GH_TOKEN}@github.com/${GITOPS_REPO}.git gitops-repo
           cd gitops-repo
           
-          # Checkout the target branch
-          echo "Checking out target branch: ${ENVIRONMENT}"
-          git checkout "${ENVIRONMENT}"
-          
-          # Check if digest file exists and get current digest
-          DIGEST_FILE="manifests/frontend/digest-values.yaml"
-          if [ -f "$DIGEST_FILE" ]; then
-            GITOPS_DIGEST=$(grep 'digest:' "$DIGEST_FILE" | sed 's/.*digest: "\(.*\)"/\1/' || echo "none")
-          else
-            GITOPS_DIGEST="none"
-            echo "📁 $DIGEST_FILE doesn't exist yet, will create it"
-          fi
+          GITOPS_DIGEST=$(grep 'digest:' environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml | sed 's/.*digest: "\(.*\)"/\1/')
           
           if [ "$GITOPS_DIGEST" == "$TARGET_DIGEST" ]; then
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "✅ GitOps digest unchanged: gitops: $GITOPS_DIGEST vs $TARGET_DIGEST"
           else
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "🔄 GitOps digest will change: gitops_digest: $GITOPS_DIGEST → target_digest: $TARGET_DIGEST"
+            echo "🔄 GitOps digest will change: digest to be replace: $GITOPS_DIGEST → digest to be replaced by: $TARGET_DIGEST"
           fi
 
       - name: Update GitOps repository
@@ -477,7 +466,7 @@ jobs:
         env:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
-          ENVIRONMENT: ${{ github.event.inputs.target_branch }}
+          ENVIRONMENT: ${{ github.event.inputs.env }}
           TARGET_DIGEST: ${{ steps.final-digest.outputs.digest_only }}
         run: |
           cd gitops-repo
@@ -487,49 +476,33 @@ jobs:
           BRANCH_NAME="frontend-update-$(date +%Y%m%d-%H%M%S)"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           
-          # Create branch from target branch
           git checkout -b "$BRANCH_NAME"
           
-          # Update or create digest file
-          DIGEST_FILE="manifests/frontend/digest-values.yaml"
-          mkdir -p "$(dirname "$DIGEST_FILE")"
-
-          if [ -f "$DIGEST_FILE" ]; then
-            # Update existing file
-            sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" "$DIGEST_FILE"
-          else
-            # Create new file
-            echo "## Frontend digest values" > "$DIGEST_FILE"
-            echo "# managed by the application repo workflow (build-and-push action or update-digest-only)" >> "$DIGEST_FILE"
-            echo "" >> "$DIGEST_FILE"
-            echo "image:" >> "$DIGEST_FILE"
-            echo "  digest: \"${TARGET_DIGEST}\"" >> "$DIGEST_FILE"
-          fi
-
-          git add "$DIGEST_FILE"
+          sed -i "s|digest: \"sha256:.*\"|digest: \"${TARGET_DIGEST}\"|g" environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml
+          git add environments/${ENVIRONMENT}/manifests/frontend/digest-values.yaml
           git commit -m "Update frontend digest for ${ENVIRONMENT}: ${TARGET_DIGEST}"
           git push origin "$BRANCH_NAME"
           
-          # Create PR targeting the correct branch
+          # Create PR and capture response
           PR_RESPONSE=$(curl -s -X POST \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${GITOPS_REPO}/pulls" \
-            -d "{\"title\":\"Frontend: Update ${ENVIRONMENT} digest\",\"head\":\"${BRANCH_NAME}\",\"base\":\"${ENVIRONMENT}\",\"body\":\"Automated digest update for ${ENVIRONMENT} environment\"}")
+            -d "{\"title\":\"Frontend: Update ${ENVIRONMENT} digest\",\"head\":\"${BRANCH_NAME}\",\"base\":\"main\",\"body\":\"Automated digest update for ${ENVIRONMENT} environment\"}")
           
           # Extract PR number
           PR_NUMBER=$(echo "$PR_RESPONSE" | jq -r '.number')
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
           
           if [ "$PR_NUMBER" != "null" ] && [ -n "$PR_NUMBER" ]; then
-            echo "✅ Created PR #${PR_NUMBER} targeting ${ENVIRONMENT} branch"
+            echo "✅ Created PR #${PR_NUMBER}"
           else
             echo "❌ Failed to create PR. Response: $PR_RESPONSE"
             exit 1
           fi
       
       - name: Auto-merge GitOps PR
-        if: ${{ steps.check-gitops-changes.outputs.changed == 'true' && github.event.inputs.auto_merge == 'true' && github.event.inputs.target_branch != 'main' }}
+        if: ${{ steps.check-gitops-changes.outputs.changed == 'true' && github.event.inputs.auto_merge == 'true' }}
         env:
           GH_TOKEN: "${{ env.GH_TOKEN }}"
           GITOPS_REPO: ${{ env.GITOPS_REPO }}
@@ -553,7 +526,7 @@ jobs:
       - name: Build Summary
         run: |
           echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ github.event.inputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ github.event.inputs.env }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Strategy:** ${{ steps.build-strategy.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
           
