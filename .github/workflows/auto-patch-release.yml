@@ -132,22 +132,22 @@ jobs:
           
           # Create release notes based on strategy
           if [ "$STRATEGY" == "release" ]; then
-            if [ "${{ github.event_name }}" == "pull_request" ]; then
-              RELEASE_NOTES="Release created from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
-              
-              **Source**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
-              **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
-            else
-              RELEASE_NOTES="Release $NEW_VERSION"
-            fi
+            # Scenario 1: Manual release workflow PR
+            RELEASE_NOTES="Release created from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+
+            **Source**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
+            **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
+            
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Scenario 2: Any other merged PR (hotfix, cherry-pick, etc.)
+            RELEASE_NOTES="Patch release from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+
+            **Source**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
+            **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
+            
           else
-            if [ "${{ github.event_name }}" == "pull_request" ]; then
-              RELEASE_NOTES="Patch release from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
-              
-              **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
-            else
-              RELEASE_NOTES="Patch release from direct push to main"
-            fi
+            # Scenario 3: Direct push or anything else
+            RELEASE_NOTES="Patch release from direct push to main"
           fi
           
           # Create GitHub release
