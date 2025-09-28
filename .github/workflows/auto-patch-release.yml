@@ -1,3 +1,5 @@
+# .github/workflows/auto-patch-release.yml
+
 name: Auto Patch Release
 
 concurrency:
@@ -29,8 +31,10 @@ jobs:
         run: |
           # Default to patch strategy
           echo "strategy=patch" >> $GITHUB_OUTPUT
+          echo "skip_processing=false" >> $GITHUB_OUTPUT
           
           if [ "${{ github.event_name }}" == "pull_request" ]; then
+            # Handle PR closed events - always process
             PR_TITLE="${{ github.event.pull_request.title }}"
             PR_BODY="${{ github.event.pull_request.body }}"
             PR_HEAD_REF="${{ github.event.pull_request.head.ref }}"
@@ -75,12 +79,27 @@ jobs:
               echo "  - Email is github-actions[bot]: $([[ "$COMMIT_EMAIL" == "github-actions[bot]@users.noreply.github.com" ]] && echo "✓" || echo "✗")"
               echo "Using patch strategy"
             fi
-          else
-            echo "Direct push to main - using patch strategy"
+          elif [ "${{ github.event_name }}" == "push" ]; then
+            # Handle push events - check if it's a merge commit from PR
+            echo "Push event detected - checking if this is a PR merge commit..."
+            
+            # Get the number of parents for the pushed commit
+            PARENT_COUNT=$(git rev-list --count --parents -n 1 HEAD | awk '{print NF-1}')
+            echo "Commit parent count: $PARENT_COUNT"
+            
+            if [ "$PARENT_COUNT" -gt 1 ]; then
+              echo "This is a merge commit from PR - skipping release creation"
+              echo "The PR closed event will handle the release"
+              echo "skip_processing=true" >> $GITHUB_OUTPUT
+            else
+              echo "This is a direct push commit - creating patch release"
+              echo "skip_processing=false" >> $GITHUB_OUTPUT
+            fi
           fi
           
       - name: Get latest tag
         id: latest-tag
+        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
@@ -88,6 +107,7 @@ jobs:
           
       - name: Calculate version
         id: new-version
+        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           if [ "${{ steps.strategy.outputs.strategy }}" == "release" ]; then
             # Use version from PR title/labels
@@ -106,6 +126,7 @@ jobs:
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
           
       - name: Validate version
+        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           LATEST="${{ steps.latest-tag.outputs.tag }}"
           NEW="${{ steps.new-version.outputs.version }}"
@@ -119,6 +140,7 @@ jobs:
           echo "Version validation passed: $LATEST → $NEW"
           
       - name: Create tag and release
+        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
