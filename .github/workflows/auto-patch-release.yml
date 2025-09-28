@@ -9,9 +9,13 @@ concurrency:
 on:
   push:
     branches: [main]
+    paths:
+      - 'it-works-on-my-machine/**'
   pull_request:
     types: [closed]
     branches: [main]
+    paths:
+      - 'it-works-on-my-machine/**'
 
 jobs:
   auto-patch:
@@ -52,11 +56,10 @@ jobs:
             echo "Merge Commit Email: $COMMIT_EMAIL"
             
             # Check conditions for release strategy
-            if [[ ("$PR_HEAD_REF" == "dev" || "$PR_HEAD_REF" == "staging") && 
+            if [[ "$PR_HEAD_REF" =~ ^release/ && 
                   "$PR_BASE_REF" == "main" && 
-                  "$PR_BODY" == *"This PR will be tagged automatically after merge."* &&
-                  "$COMMIT_AUTHOR" == "github-actions[bot]" &&
-                  "$COMMIT_EMAIL" == "github-actions[bot]@users.noreply.github.com" ]]; then
+                  "$PR_BODY" == *"This PR will be tagged automatically after merge."*
+                  ]]; then
               
               echo "All conditions met for release strategy"
               
@@ -80,16 +83,16 @@ jobs:
               echo "Using patch strategy"
             fi
           elif [ "${{ github.event_name }}" == "push" ]; then
-            # Handle push events - check if it's a merge commit from PR
             echo "Push event detected - checking if this is a PR merge commit..."
             
-            # Get the number of parents for the pushed commit
-            PARENT_COUNT=$(git cat-file -p HEAD | grep '^parent' | wc -l)
-            echo "Commit parent count: $PARENT_COUNT"
+            # Debug the merge commit detection
+            echo "DEBUG: HEAD commit: $(git rev-parse HEAD)"
+            echo "DEBUG: Full parent info: $(git rev-list --parents -n 1 HEAD)"
+            PARENT_COUNT=$(git rev-list --count --parents -n 1 HEAD | awk '{print NF-1}')
+            echo "DEBUG: Calculated parent count: $PARENT_COUNT"
             
             if [ "$PARENT_COUNT" -gt 1 ]; then
               echo "This is a merge commit from PR - skipping release creation"
-              echo "The PR closed event will handle the release"
               echo "skip_processing=true" >> $GITHUB_OUTPUT
             else
               echo "This is a direct push commit - creating patch release"
