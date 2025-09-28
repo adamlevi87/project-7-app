@@ -84,7 +84,7 @@ jobs:
             echo "Push event detected - checking if this is a PR merge commit..."
             
             # Get the number of parents for the pushed commit
-            PARENT_COUNT=$(git rev-list --count --parents -n 1 HEAD | awk '{print NF-1}')
+            PARENT_COUNT=$(git cat-file -p HEAD | grep '^parent' | wc -l)
             echo "Commit parent count: $PARENT_COUNT"
             
             if [ "$PARENT_COUNT" -gt 1 ]; then
