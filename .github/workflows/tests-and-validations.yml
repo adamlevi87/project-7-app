@@ -1,4 +1,4 @@
-# .github/workflows/ci.yml
+# .github/workflows/tests-and-validations.yml
 
 name: "CI - Step 2 - Tests and Validations"
 

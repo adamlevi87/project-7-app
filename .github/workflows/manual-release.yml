@@ -1,3 +1,5 @@
+# .github/workflows/manual-release.yml
+
 name: Manual Release
 
 on:

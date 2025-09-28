@@ -1,3 +1,5 @@
+# .github/workflows/auto-patch-release.yml
+
 name: Auto Patch Release
 
 concurrency:
@@ -177,4 +179,3 @@ jobs:
             --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
