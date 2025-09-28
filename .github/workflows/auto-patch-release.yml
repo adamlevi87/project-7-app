@@ -79,16 +79,16 @@ jobs:
               echo "Using patch strategy"
             fi
           elif [ "${{ github.event_name }}" == "push" ]; then
-            # Handle push events - check if it's a merge commit from PR
             echo "Push event detected - checking if this is a PR merge commit..."
             
-            # Get the number of parents for the pushed commit
+            # Debug the merge commit detection
+            echo "DEBUG: HEAD commit: $(git rev-parse HEAD)"
+            echo "DEBUG: Full parent info: $(git rev-list --parents -n 1 HEAD)"
             PARENT_COUNT=$(git rev-list --count --parents -n 1 HEAD | awk '{print NF-1}')
-            echo "Commit parent count: $PARENT_COUNT"
+            echo "DEBUG: Calculated parent count: $PARENT_COUNT"
             
             if [ "$PARENT_COUNT" -gt 1 ]; then
               echo "This is a merge commit from PR - skipping release creation"
-              echo "The PR closed event will handle the release"
               echo "skip_processing=true" >> $GITHUB_OUTPUT
             else
               echo "This is a direct push commit - creating patch release"
