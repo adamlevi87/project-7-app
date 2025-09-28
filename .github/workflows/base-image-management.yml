@@ -1,6 +1,6 @@
 # .github/workflows/base-image-management.yml
 
-name: "Base Image Management - CI- Step 0"
+name: "CI - Step 1 - Base Image Management"
 
 on:
   # push:
