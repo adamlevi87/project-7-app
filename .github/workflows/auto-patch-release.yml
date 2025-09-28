@@ -9,9 +9,13 @@ concurrency:
 on:
   push:
     branches: [main]
+    paths:
+      - 'it-works-on-my-machine/**'
   pull_request:
     types: [closed]
     branches: [main]
+    paths:
+      - 'it-works-on-my-machine/**'
 
 jobs:
   auto-patch:
