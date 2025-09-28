@@ -1068,4 +1068,4 @@ jobs:
               }
             }"
           
-          echo "Frontend deploy workflow triggered for dev environment"
+          echo "✅ Application deploy workflow triggered for ${{ inputs.target_branch }} environment"
