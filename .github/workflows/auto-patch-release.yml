@@ -88,7 +88,7 @@ jobs:
             # Debug the merge commit detection
             echo "DEBUG: HEAD commit: $(git rev-parse HEAD)"
             echo "DEBUG: Full parent info: $(git rev-list --parents -n 1 HEAD)"
-            PARENT_COUNT=$(git rev-list --count --parents -n 1 HEAD | awk '{print NF-1}')
+            PARENT_COUNT=$(git cat-file -p HEAD | grep '^parent' | wc -l)
             echo "DEBUG: Calculated parent count: $PARENT_COUNT"
             
             if [ "$PARENT_COUNT" -gt 1 ]; then
