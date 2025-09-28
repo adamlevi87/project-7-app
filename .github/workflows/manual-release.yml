@@ -1,3 +1,5 @@
+# .github/workflows/manual-release.yml
+
 name: Manual Release
 
 on:
@@ -105,7 +107,8 @@ jobs:
             **Bump Type**: ${{ github.event.inputs.version_bump }}
             
             This PR will be tagged automatically after merge."
-            LABELS="release,version:${{ steps.new-version.outputs.version }}"
+            #LABELS="release,version:${{ steps.new-version.outputs.version }}"
+            LABELS="release"
           else
             PR_BODY="**Merge PR**: ${{ github.event.inputs.source_branch }} → ${{ github.event.inputs.target_branch }}
             
