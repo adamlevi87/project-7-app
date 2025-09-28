@@ -10,6 +10,7 @@ on:
 jobs:
   auto-patch:
     if: |
+      github.event_name == 'push' ||
       github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     
@@ -19,38 +20,120 @@ jobs:
         with:
           fetch-depth: 0
           
+      - name: Determine tagging strategy
+        id: strategy
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+            PR_HEAD_REF="${{ github.event.pull_request.head.ref }}"
+            
+            echo "PR Title: $PR_TITLE"
+            echo "PR Labels: $PR_LABELS"
+            echo "PR Head Ref: $PR_HEAD_REF"
+            
+            # Check if this is a release PR (contains version in title)
+            if [[ "$PR_TITLE" =~ Release\ (v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
+              VERSION_FROM_TITLE="${BASH_REMATCH[1]}"
+              echo "strategy=release" >> $GITHUB_OUTPUT
+              echo "version=$VERSION_FROM_TITLE" >> $GITHUB_OUTPUT
+              echo "Found release version in title: $VERSION_FROM_TITLE"
+            elif [[ "$PR_LABELS" == *"release"* ]]; then
+              # Fallback: check labels for release tag
+              LABEL_VERSION=$(echo "$PR_LABELS" | grep -o 'version:v[0-9]\+\.[0-9]\+\.[0-9]\+' | cut -d: -f2 || echo "")
+              if [ -n "$LABEL_VERSION" ]; then
+                echo "strategy=release" >> $GITHUB_OUTPUT
+                echo "version=$LABEL_VERSION" >> $GITHUB_OUTPUT
+                echo "Found release version in labels: $LABEL_VERSION"
+              else
+                echo "strategy=patch" >> $GITHUB_OUTPUT
+                echo "Release label found but no version - defaulting to patch"
+              fi
+            else
+              echo "strategy=patch" >> $GITHUB_OUTPUT
+              echo "No release indicators found - using patch strategy"
+            fi
+          else
+            # Direct push to main
+            echo "strategy=patch" >> $GITHUB_OUTPUT
+            echo "Direct push to main - using patch strategy"
+          fi
+          
       - name: Get latest tag
         id: latest-tag
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
           
-      - name: Increment patch version
+      - name: Calculate version
         id: new-version
         run: |
-          LATEST="${{ steps.latest-tag.outputs.tag }}"
-          # Remove 'v' prefix and split version
-          VERSION=${LATEST#v}
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-          
-          # Increment patch
-          NEW_PATCH=$((PATCH + 1))
-          NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          if [ "${{ steps.strategy.outputs.strategy }}" == "release" ]; then
+            # Use version from PR title/labels
+            NEW_VERSION="${{ steps.strategy.outputs.version }}"
+            echo "Using release version: $NEW_VERSION"
+          else
+            # Patch bump
+            LATEST="${{ steps.latest-tag.outputs.tag }}"
+            VERSION=${LATEST#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+            NEW_PATCH=$((PATCH + 1))
+            NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+            echo "Patch bump: $LATEST → $NEW_VERSION"
+          fi
           
           echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "Creating patch release: $LATEST → $NEW_VERSION"
+          
+      - name: Validate version
+        run: |
+          LATEST="${{ steps.latest-tag.outputs.tag }}"
+          NEW="${{ steps.new-version.outputs.version }}"
+          
+          # Basic validation that new version is different from latest
+          if [ "$LATEST" == "$NEW" ]; then
+            echo "Error: New version ($NEW) is same as latest tag ($LATEST)"
+            exit 1
+          fi
+          
+          echo "Version validation passed: $LATEST → $NEW"
           
       - name: Create tag and release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          git tag ${{ steps.new-version.outputs.version }}
-          git push origin ${{ steps.new-version.outputs.version }}
+          NEW_VERSION="${{ steps.new-version.outputs.version }}"
+          STRATEGY="${{ steps.strategy.outputs.strategy }}"
           
-          gh release create ${{ steps.new-version.outputs.version }} \
-            --title "Release ${{ steps.new-version.outputs.version }}" \
-            --notes "Automated patch release" \
+          # Create tag
+          git tag "$NEW_VERSION"
+          git push origin "$NEW_VERSION"
+          
+          # Create release notes based on strategy
+          if [ "$STRATEGY" == "release" ]; then
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              RELEASE_NOTES="Release created from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+              
+              **Source**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
+              **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
+            else
+              RELEASE_NOTES="Release $NEW_VERSION"
+            fi
+          else
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              RELEASE_NOTES="Patch release from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+              
+              **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
+            else
+              RELEASE_NOTES="Patch release from direct push to main"
+            fi
+          fi
+          
+          # Create GitHub release
+          gh release create "$NEW_VERSION" \
+            --title "Release $NEW_VERSION" \
+            --notes "$RELEASE_NOTES" \
             --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
