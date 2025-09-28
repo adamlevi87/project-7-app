@@ -23,39 +23,55 @@ jobs:
       - name: Determine tagging strategy
         id: strategy
         run: |
+          # Default to patch strategy
+          echo "strategy=patch" >> $GITHUB_OUTPUT
+          
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             PR_TITLE="${{ github.event.pull_request.title }}"
-            PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ',') }}"
+            PR_BODY="${{ github.event.pull_request.body }}"
             PR_HEAD_REF="${{ github.event.pull_request.head.ref }}"
+            PR_BASE_REF="${{ github.event.pull_request.base.ref }}"
+            
+            # Get merge commit author info
+            MERGE_COMMIT_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+            COMMIT_AUTHOR=$(git log -1 --format='%an' "$MERGE_COMMIT_SHA" 2>/dev/null || echo "")
+            COMMIT_EMAIL=$(git log -1 --format='%ae' "$MERGE_COMMIT_SHA" 2>/dev/null || echo "")
             
             echo "PR Title: $PR_TITLE"
-            echo "PR Labels: $PR_LABELS"
             echo "PR Head Ref: $PR_HEAD_REF"
+            echo "PR Base Ref: $PR_BASE_REF"
+            echo "Merge Commit Author: $COMMIT_AUTHOR"
+            echo "Merge Commit Email: $COMMIT_EMAIL"
             
-            # Check if this is a release PR (contains version in title)
-            if [[ "$PR_TITLE" =~ Release\ (v[0-9]+\.[0-9]+\.[0-9]+) ]]; then
-              VERSION_FROM_TITLE="${BASH_REMATCH[1]}"
-              echo "strategy=release" >> $GITHUB_OUTPUT
-              echo "version=$VERSION_FROM_TITLE" >> $GITHUB_OUTPUT
-              echo "Found release version in title: $VERSION_FROM_TITLE"
-            elif [[ "$PR_LABELS" == *"release"* ]]; then
-              # Fallback: check labels for release tag
-              LABEL_VERSION=$(echo "$PR_LABELS" | grep -o 'version:v[0-9]\+\.[0-9]\+\.[0-9]\+' | cut -d: -f2 || echo "")
-              if [ -n "$LABEL_VERSION" ]; then
+            # Check conditions for release strategy
+            if [[ ("$PR_HEAD_REF" == "dev" || "$PR_HEAD_REF" == "staging") && 
+                  "$PR_BASE_REF" == "main" && 
+                  "$PR_BODY" == *"This PR will be tagged automatically after merge."* &&
+                  "$COMMIT_AUTHOR" == "github-actions[bot]" &&
+                  "$COMMIT_EMAIL" == "github-actions[bot]@users.noreply.github.com" ]]; then
+              
+              echo "All conditions met for release strategy"
+              
+              # Extract version from PR body
+              VERSION_LINE=$(echo "$PR_BODY" | grep -o '\*\*Version\*\*: v[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "")
+              if [ -n "$VERSION_LINE" ]; then
+                EXTRACTED_VERSION=$(echo "$VERSION_LINE" | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+')
                 echo "strategy=release" >> $GITHUB_OUTPUT
-                echo "version=$LABEL_VERSION" >> $GITHUB_OUTPUT
-                echo "Found release version in labels: $LABEL_VERSION"
+                echo "version=$EXTRACTED_VERSION" >> $GITHUB_OUTPUT
+                echo "Using release strategy with version: $EXTRACTED_VERSION"
               else
-                echo "strategy=patch" >> $GITHUB_OUTPUT
-                echo "Release label found but no version - defaulting to patch"
+                echo "Version not found in PR body - falling back to patch strategy"
               fi
             else
-              echo "strategy=patch" >> $GITHUB_OUTPUT
-              echo "No release indicators found - using patch strategy"
+              echo "Conditions not met for release strategy:"
+              echo "  - Source branch (dev/staging): $([[ "$PR_HEAD_REF" == "dev" || "$PR_HEAD_REF" == "staging" ]] && echo "✓" || echo "✗")"
+              echo "  - Target branch (main): $([[ "$PR_BASE_REF" == "main" ]] && echo "✓" || echo "✗")"
+              echo "  - Auto-merge text in body: $([[ "$PR_BODY" == *"This PR will be tagged automatically after merge."* ]] && echo "✓" || echo "✗")"
+              echo "  - Author is github-actions[bot]: $([[ "$COMMIT_AUTHOR" == "github-actions[bot]" ]] && echo "✓" || echo "✗")"
+              echo "  - Email is github-actions[bot]: $([[ "$COMMIT_EMAIL" == "github-actions[bot]@users.noreply.github.com" ]] && echo "✓" || echo "✗")"
+              echo "Using patch strategy"
             fi
           else
-            # Direct push to main
-            echo "strategy=patch" >> $GITHUB_OUTPUT
             echo "Direct push to main - using patch strategy"
           fi
           
