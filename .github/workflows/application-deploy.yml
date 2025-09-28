@@ -1,6 +1,6 @@
 # .github/workflows/frontend-deploy.yml
 
-name: Frontend - Build and Deploy to ECR
+name: Application - Build and Deploy to ECR
 on:
   workflow_dispatch:
     inputs:
@@ -13,6 +13,10 @@ on:
           - dev
           - staging
           - prod
+      tag:
+        description: 'Git tag to deploy (for main branch only)'
+        required: false
+        type: string
       action:
         description: "Action to perform"
         required: true
@@ -45,6 +49,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.env == 'main' && inputs.tag || inputs.env }}
         # with:
         #   fetch-depth: 2  # Need previous commit for change detection
       

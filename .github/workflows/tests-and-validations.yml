@@ -22,6 +22,10 @@ on:
           - dev
           - staging  
           - main
+      tag:
+        description: 'Git tag to deploy (for main branch only)'
+        required: false
+        type: string
       skip_stage1:
         description: 'Skip Stage 1 (Quality checks)'
         required: false
@@ -68,7 +72,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        ref: ${{ inputs.target_branch }}
+        ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
     
     - name: Setup Node.js
       uses: ./.github/actions/setup-node
@@ -1049,16 +1053,15 @@ jobs:
     steps:
       - name: Trigger Frontend Deploy Workflow
         run: |
-          echo "Triggering frontend deployment workflow for dev environment..."
-          
           curl -X POST \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/frontend-deploy.yml/dispatches" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/application-deploy.yml/dispatches" \
             -d "{
-              \"ref\": \"${{ github.ref_name }}\",
+              \"ref\": \"${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}\",
               \"inputs\": {
-                \"env\": \"dev\",
+                \"target_branch\": \"${{ inputs.target_branch }}\",
+                \"tag\": \"${{ inputs.tag || '' }}\",
                 \"action\": \"build-and-push\",
                 \"auto_merge\": \"true\",
                 \"force_cosign\": \"false\"

@@ -22,6 +22,10 @@ on:
           - dev
           - staging  
           - main
+      tag:
+        description: 'Git tag to deploy (for main branch only)'
+        required: false
+        type: string
       base_image_with_digest:
         description: 'Base image with multi-arch manifest digest'
         required: false
@@ -71,7 +75,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_branch }}
+          ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
       
       ############################## Stage 0: Base Image Management & Supply Chain Security
       ############### Input Parsing and Validation
