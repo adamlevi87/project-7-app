@@ -94,6 +94,7 @@ jobs:
           git merge origin/${{ github.event.inputs.source_branch }} --no-ff -m "Merge ${{ github.event.inputs.source_branch }} into ${{ github.event.inputs.target_branch }}"
           
       - name: Push release branch and create PR
+        id: create-pr
         run: |
           git push origin ${{ steps.create-branch.outputs.branch_name }}
           
@@ -112,12 +113,29 @@ jobs:
             LABELS="merge"
           fi
           
-          gh pr create \
+          PR_URL=$(gh pr create \
             --title "${{ steps.create-branch.outputs.pr_title }}" \
             --body "$PR_BODY" \
             --base ${{ github.event.inputs.target_branch }} \
             --head ${{ steps.create-branch.outputs.branch_name }} \
-            --label "$LABELS"
+            --label "$LABELS")
+          
+          # Extract PR number from URL
+          PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]\+)
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "Created PR #$PR_NUMBER: $PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
+      - name: Auto-merge staging PRs
+        if: github.event.inputs.target_branch == 'staging'
+        run: |
+          echo "Auto-merging staging PR #${{ steps.create-pr.outputs.pr_number }}"
+          
+          # Enable auto-merge
+          gh pr merge ${{ steps.create-pr.outputs.pr_number }} \
+            --merge --auto --delete-branch
+          
+          echo "Auto-merge enabled for staging PR"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
