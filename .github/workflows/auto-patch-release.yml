@@ -52,11 +52,10 @@ jobs:
             echo "Merge Commit Email: $COMMIT_EMAIL"
             
             # Check conditions for release strategy
-            if [[ ("$PR_HEAD_REF" == "dev" || "$PR_HEAD_REF" == "staging") && 
+            if [[ "$PR_HEAD_REF" =~ ^release/ && 
                   "$PR_BASE_REF" == "main" && 
-                  "$PR_BODY" == *"This PR will be tagged automatically after merge."* &&
-                  "$COMMIT_AUTHOR" == "github-actions[bot]" &&
-                  "$COMMIT_EMAIL" == "github-actions[bot]@users.noreply.github.com" ]]; then
+                  "$PR_BODY" == *"This PR will be tagged automatically after merge."*
+                  ]]; then
               
               echo "All conditions met for release strategy"
               
