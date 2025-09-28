@@ -1,5 +1,9 @@
 name: Auto Patch Release
 
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+  
 on:
   push:
     branches: [main]
@@ -153,4 +157,3 @@ jobs:
             --latest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
