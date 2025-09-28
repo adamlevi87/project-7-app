@@ -1,0 +1,142 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'Source branch'
+        required: true
+        type: choice
+        options: ['dev', 'staging']
+      target_branch:
+        description: 'Target branch'
+        required: true
+        type: choice
+        options: ['staging', 'main']
+      version_bump:
+        description: 'Version bump (only for main target)'
+        required: false
+        type: choice
+        options: ['minor', 'major']
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate inputs
+        run: |
+          if [ "${{ github.event.inputs.target_branch }}" == "main" ] && [ -z "${{ github.event.inputs.version_bump }}" ]; then
+            echo "Error: version_bump is required when target_branch is main"
+            exit 1
+          fi
+          
+          if [ "${{ github.event.inputs.source_branch }}" == "${{ github.event.inputs.target_branch }}" ]; then
+            echo "Error: source and target branches cannot be the same"
+            exit 1
+          fi
+          
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch }}
+          fetch-depth: 0
+          
+      - name: Get latest tag (only for main target)
+        id: latest-tag
+        if: github.event.inputs.target_branch == 'main'
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          
+      - name: Calculate new version (only for main target)
+        id: new-version
+        if: github.event.inputs.target_branch == 'main'
+        run: |
+          LATEST="${{ steps.latest-tag.outputs.tag }}"
+          VERSION=${LATEST#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          if [ "${{ github.event.inputs.version_bump }}" == "major" ]; then
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_VERSION="v${NEW_MAJOR}.0.0"
+          else
+            NEW_MINOR=$((MINOR + 1))
+            NEW_VERSION="v${MAJOR}.${NEW_MINOR}.0"
+          fi
+          
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Creating ${{ github.event.inputs.version_bump }} release: $LATEST → $NEW_VERSION"
+          
+      - name: Create release branch
+        id: create-branch
+        run: |
+          if [ "${{ github.event.inputs.target_branch }}" == "main" ]; then
+            BRANCH_NAME="release/${{ steps.new-version.outputs.version }}"
+            PR_TITLE="Release ${{ steps.new-version.outputs.version }} (${{ github.event.inputs.source_branch }} → ${{ github.event.inputs.target_branch }})"
+          else
+            TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+            BRANCH_NAME="merge/${{ github.event.inputs.source_branch }}-to-${{ github.event.inputs.target_branch }}-$TIMESTAMP"
+            PR_TITLE="Merge ${{ github.event.inputs.source_branch }} → ${{ github.event.inputs.target_branch }}"
+          fi
+          
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "pr_title=$PR_TITLE" >> $GITHUB_OUTPUT
+          
+          git checkout -b "$BRANCH_NAME"
+          
+      - name: Merge source branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git fetch origin ${{ github.event.inputs.source_branch }}
+          git merge origin/${{ github.event.inputs.source_branch }} --no-ff -m "Merge ${{ github.event.inputs.source_branch }} into ${{ github.event.inputs.target_branch }}"
+          
+      - name: Push release branch and create PR
+        id: create-pr
+        run: |
+          git push origin ${{ steps.create-branch.outputs.branch_name }}
+          
+          if [ "${{ github.event.inputs.target_branch }}" == "main" ]; then
+            PR_BODY="**Release PR**: ${{ github.event.inputs.source_branch }} → ${{ github.event.inputs.target_branch }}
+            
+            **Version**: ${{ steps.new-version.outputs.version }}
+            **Bump Type**: ${{ github.event.inputs.version_bump }}
+            
+            This PR will be tagged automatically after merge."
+            LABELS="release,version:${{ steps.new-version.outputs.version }}"
+          else
+            PR_BODY="**Merge PR**: ${{ github.event.inputs.source_branch }} → ${{ github.event.inputs.target_branch }}
+            
+            This merge does not involve versioning."
+            LABELS="merge"
+          fi
+          
+          PR_URL=$(gh pr create \
+            --title "${{ steps.create-branch.outputs.pr_title }}" \
+            --body "$PR_BODY" \
+            --base ${{ github.event.inputs.target_branch }} \
+            --head ${{ steps.create-branch.outputs.branch_name }} \
+            --label "$LABELS")
+          
+          # Extract PR number from URL
+          PR_NUMBER=$(echo "$PR_URL" | grep -o '[0-9]\+)
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "Created PR #$PR_NUMBER: $PR_URL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Auto-merge staging PRs
+        if: github.event.inputs.target_branch == 'staging'
+        run: |
+          echo "Auto-merging staging PR #${{ steps.create-pr.outputs.pr_number }}"
+          
+          # Enable auto-merge
+          gh pr merge ${{ steps.create-pr.outputs.pr_number }} \
+            --merge --auto --delete-branch
+          
+          echo "Auto-merge enabled for staging PR"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
