@@ -283,6 +283,33 @@ jobs:
           rm /tmp/Dockerfile.labels
           
           echo "✅ Base image management completed with verified public image and private registry caching"
+
+      - name: Stage 0 Summary
+        if: always()
+        run: |
+          echo "## 📊 Stage 0: Base Image Management & Supply Chain Security" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Base Image** | \`${{ steps.parse_inputs.outputs.base_image_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Multi-arch Digest** | \`${{ steps.parse_inputs.outputs.base_image_multiarch_digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Platform Manifest** | \`${{ inputs.base_image_manifest }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Private Registry** | \`${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Version** | \`${{ steps.resolve_version.outputs.resolved_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.check_private.outputs.needs_push }}" == "true" ]; then
+            echo "- ✅ **Image pulled from public Docker Hub with Content Trust verification**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Build metadata labels applied**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Image pushed to private registry:** \`${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ℹ️ **No push needed** - Image already exists in private registry with matching labels" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
       #####
       ###############
       ##############################
@@ -530,51 +557,90 @@ jobs:
       #####
 
       ############### Summary
-      - name: Stage 1 Summary
+      - name: Stage 1 Summary  
         if: always()
         run: |
-          echo "📊 Stage 1: Dockerfile Check Summary"
-          echo "================================="
-          echo "Target Branch: ${{ inputs.target_branch }}"
-          echo "Resolved Version: ${{ steps.resolve_version.outputs.resolved_version }}"
-          echo "Changes Required: ${{ steps.dockerfile_check.outputs.changes_required }}"
-          echo "================================="
+          echo "## 📊 Stage 1: Dockerfile Validation & Update" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Expected Base Image** | \`${{ secrets.DOCKER_HUB_USERNAME }}/${{ inputs.private_image_name }}:${{ steps.resolve_version.outputs.resolved_version }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Changes Required** | \`${{ steps.dockerfile_check.outputs.changes_required }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.dockerfile_check.outputs.changes_required }}" == "true" ]; then
+            echo "- 🔄 **Dockerfile update needed**" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Branch created:** \`${{ steps.update_dockerfile.outputs.branch_name }}\`" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Pull Request created:** #${{ steps.create_pr.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ inputs.target_branch }}" == "dev" ] || [ "${{ inputs.target_branch }}" == "staging" ]; then
+              echo "- ✅ **PR auto-merged** (dev/staging)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- ⏳ **Manual review required** (main/prod)" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "- ✅ **Dockerfile is up to date** - No changes needed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
       #####
   stage2-trigger-ci:
     runs-on: ubuntu-latest
     needs: stage1-handling-dockerfile
-    if: ${{ inputs.skip_stage_2 != true && !failure() && (inputs.skip_stage_1 == true || needs.stage1-handling-dockerfile.outputs.changes_required == 'false') }}
+    if: ${{ inputs.skip_stage_2 != true && !failure() && !cancelled() && (inputs.skip_stage_1 == true || needs.stage1-handling-dockerfile.outputs.changes_required == 'false') }}
     
     steps:
-      - name: Trigger Unified CI Pipeline
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Trigger and wait for Unified CI Pipeline
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "🚀 Triggering unified CI pipeline for ${{ inputs.target_branch }} branch..."
           
-          curl -X POST \
-            -H "Authorization: Bearer ${{ github.token }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/unified-ci-pipeline.yml/dispatches" \
-            -d "{
-              \"ref\": \"${{ inputs.target_branch }}\",
-              \"inputs\": {
-                \"target_branch\": \"${{ inputs.target_branch }}\"
-              }
-            }"
+          gh workflow run unified-ci-pipeline.yml \
+            --ref ${{ inputs.target_branch }} \
+            -f target_branch=${{ inputs.target_branch }}
           
-          echo "✅ Unified CI pipeline triggered for ${{ inputs.target_branch }}"
+          echo "⏳ Waiting for unified CI workflow to complete..."
+          
+          # Wait a moment for the run to be created
+          sleep 5
+          
+          # Get the most recent run ID for this workflow
+          RUN_ID=$(gh run list --workflow=unified-ci-pipeline.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          
+          echo "📊 Watching run ID: $RUN_ID"
+          
+          # Wait for completion and check status
+          gh run watch $RUN_ID --exit-status
+          
+          echo "✅ Unified CI pipeline completed successfully for ${{ inputs.target_branch }}"
       
-      - name: Summary
+      - name: Stage 2 Summary
         if: always()
         run: |
-          echo "📊 Stage 2: CI Trigger Summary"
-          echo "=============================="
-          echo "Target Branch: ${{ inputs.target_branch }}"
-          echo "Changes Required: ${{ needs.stage1-handling-dockerfile.outputs.changes_required }}"
+          echo "## 📊 Stage 2: CI Pipeline Trigger" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Dockerfile Changes Required** | \`${{ needs.stage1-handling-dockerfile.outputs.changes_required }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Trigger Decision" >> $GITHUB_STEP_SUMMARY
           if [ "${{ inputs.target_branch }}" == "main" ] && [ "${{ needs.stage1-handling-dockerfile.outputs.changes_required }}" == "true" ]; then
-            echo "CI Workflow Triggered: ❌ (Production - Manual merge required)"
+            echo "- ⏸️ **CI not triggered** - Production PR requires manual merge" >> $GITHUB_STEP_SUMMARY
+            echo "- ℹ️ CI will run automatically when PR is merged" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ needs.stage1-handling-dockerfile.outputs.changes_required }}" == "true" ]; then
-            echo "CI Workflow Triggered: ✅"
+            echo "- ⏸️ **CI not triggered** - Dockerfile PR will trigger CI on merge" >> $GITHUB_STEP_SUMMARY
           else
-            echo "CI Workflow Triggered: ❌ (No changes required)"
+            echo "- ✅ **Unified CI Pipeline triggered** - No Dockerfile changes, running CI now" >> $GITHUB_STEP_SUMMARY
           fi
-          echo "=============================="
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
