@@ -2,7 +2,11 @@
 
 name: "Unified CI Pipeline"
 
-run-name: "Unified CI Pipeline - [${{ github.event_name }}] ${{ github.ref_name }} - ${{ github.event.head_commit.message || 'Manual trigger' }}"
+run-name: >-
+  Unified CI Pipeline [${{ github.event_name }}] ${{ github.ref_name }} - 
+  ${{ github.event_name == 'pull_request' && format('PR #{0} merged', github.event.pull_request.number) || 
+      github.event_name == 'workflow_dispatch' && 'Manual trigger' || 
+      github.event.head_commit.message }}
 
 on:
   workflow_dispatch:
