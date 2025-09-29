@@ -46,11 +46,35 @@ on:
         type: boolean
   push:
     branches: [dev, staging, main]
-    paths:
-      - 'it-works-on-my-machine/**'
+    # paths:
+    #   - 'it-works-on-my-machine/**'
 
 jobs:
+  check-paths:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.app }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      
+      - name: Check for relevant file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - 'it-works-on-my-machine/**'
+
   detect-context:
+    needs: [check-paths]
+    if: |
+      always() && 
+      (github.event_name == 'workflow_dispatch' || 
+       needs.check-paths.outputs.should_run == 'true')
     runs-on: ubuntu-latest
     outputs:
       target_branch: ${{ steps.branch.outputs.name }}
