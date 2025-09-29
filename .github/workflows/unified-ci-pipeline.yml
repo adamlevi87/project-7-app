@@ -2,6 +2,8 @@
 
 name: "Unified CI Pipeline"
 
+run-name: "Unified CI Pipeline - [${{ github.event_name }}] ${{ github.ref_name }} - ${{ github.event.head_commit.message || 'Manual trigger' }}"
+
 on:
   workflow_dispatch:
     inputs:
@@ -295,7 +297,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Triggering application-deploy workflow..."
-          
+        
           # Determine auto_merge based on branch
           if [ "${{ needs.detect-context.outputs.target_branch }}" == "main" ]; then
             AUTO_MERGE="false"
@@ -304,13 +306,22 @@ jobs:
             AUTO_MERGE="${{ inputs.deploy_auto_merge || 'true' }}"
             echo "Non-main branch: auto_merge set to $AUTO_MERGE"
           fi
-          
+        
           gh workflow run application-deploy.yml \
             --ref ${{ needs.detect-context.outputs.target_branch }} \
             -f target_branch=${{ needs.detect-context.outputs.target_branch }} \
             -f action=${{ inputs.deploy_action || 'build-and-push' }} \
             -f auto_merge=$AUTO_MERGE \
             -f force_cosign=${{ inputs.deploy_force_cosign || 'false' }}
+          
+          echo "Waiting for deployment workflow to complete..."
+          sleep 5
+          
+          RUN_ID=$(gh run list --workflow=application-deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          echo "Watching run ID: $RUN_ID"
+          
+          gh run watch $RUN_ID --exit-status
+          echo "Deployment completed successfully for ${{ needs.detect-context.outputs.target_branch }}"
       
       - name: Deployment Summary
         if: always()
