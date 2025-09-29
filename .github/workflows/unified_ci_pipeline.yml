@@ -82,11 +82,11 @@ jobs:
               \"ref\": \"${{ needs.detect-context.outputs.target_branch }}\",
               \"inputs\": {
                 \"target_branch\": \"${{ needs.detect-context.outputs.target_branch }}\",
-                \"skip_stage_6\": \"true\"
+                \"skip_stage6\": \"true\"
               }
             }"
           
-          echo "✅ Tests triggered with skip_stage_6=true"
+          echo "✅ Tests triggered with skip_stage6=true"
 
   trigger-deployment:
     needs: [detect-context, run-tests]
