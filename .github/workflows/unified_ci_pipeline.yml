@@ -72,6 +72,9 @@ jobs:
     if: ${{ inputs.skip_tests != true && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
       - name: Trigger and wait for tests-and-validations workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
