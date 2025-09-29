@@ -1,0 +1,112 @@
+# .github/workflows/unified_ci_pipeline.yml
+
+name: "Unified CI Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch (dev/staging/main)'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging  
+          - main
+      # Testing options
+      skip_tests:
+        description: '[Tests] Skip all test stages'
+        required: false
+        default: false
+        type: boolean
+      
+      # Deployment options
+      deploy_action:
+        description: '[Deployment] Action to perform'
+        required: false
+        default: 'build-and-push'
+        type: choice
+        options:
+          - build-and-push
+          - update-digest-only
+          - force-rebuild
+      
+      deploy_auto_merge:
+        description: '[Deployment] Auto-merge GitOps PR (ignored for main)'
+        required: false
+        default: true
+        type: boolean
+      
+      deploy_force_cosign:
+        description: '[Deployment] Force cosign operations'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches: [dev, staging]
+    paths:
+      - 'it-works-on-my-machine/**'
+
+jobs:
+  detect-context:
+    runs-on: ubuntu-latest
+    outputs:
+      target_branch: ${{ steps.branch.outputs.name }}
+    steps:
+      - name: Detect branch
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual trigger - use input
+            BRANCH_NAME="${{ inputs.target_branch }}"
+          else
+            # Push event - extract from ref
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          fi
+          
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "Detected branch: $BRANCH_NAME"
+  
+  run-tests:
+    needs: detect-context
+    if: ${{ inputs.skip_tests != true && !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger tests-and-validations workflow
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/tests-and-validations.yml/dispatches" \
+            -d "{
+              \"ref\": \"${{ needs.detect-context.outputs.target_branch }}\",
+              \"inputs\": {
+                \"target_branch\": \"${{ needs.detect-context.outputs.target_branch }}\",
+                \"skip_stage_6\": \"true\"
+              }
+            }"
+          
+          echo "✅ Tests triggered with skip_stage_6=true"
+
+  trigger-deployment:
+    needs: [detect-context, run-tests]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger application-deploy workflow
+        run: |
+          curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/application-deploy.yml/dispatches" \
+            -d "{
+              \"ref\": \"${{ needs.detect-context.outputs.target_branch }}\",
+              \"inputs\": {
+                \"target_branch\": \"${{ needs.detect-context.outputs.target_branch }}\",
+                \"action\": \"${{ inputs.deploy_action || 'build-and-push' }}\",
+                \"auto_merge\": \"${{ inputs.deploy_auto_merge || 'true' }}\",
+                \"force_cosign\": \"${{ inputs.deploy_force_cosign || 'false' }}\"
+              }
+            }"
+          
+          echo "✅ Deployment triggered for ${{ needs.detect-context.outputs.target_branch }}"
