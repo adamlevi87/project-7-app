@@ -46,52 +46,62 @@ on:
         type: boolean
   push:
     branches: [dev, staging, main]
-    # paths:
-    #   - 'it-works-on-my-machine/**'
+    paths:
+      - 'it-works-on-my-machine/**'
+  
+  pull_request:
+    types: [closed]
+    branches: [staging, main]
+    paths:
+      - 'it-works-on-my-machine/**'
 
 jobs:
-  check-paths:
-    if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.filter.outputs.app }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
+  # check-paths:
+  #   if: ${{ github.event_name == 'push' }}
+  #   runs-on: ubuntu-latest
+  #   outputs:
+  #     should_run: ${{ steps.filter.outputs.app }}
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 2
       
-      - name: Check for relevant file changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            app:
-              - 'it-works-on-my-machine/**'
+  #     - name: Check for relevant file changes
+  #       uses: dorny/paths-filter@v3
+  #       id: filter
+  #       with:
+  #         filters: |
+  #           app:
+  #             - 'it-works-on-my-machine/**'
 
-      - name: Path Check Summary
-        run: |
-          echo "## Path Filter Check" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Files Changed** | \`${{ steps.filter.outputs.app }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
+  #     - name: Path Check Summary
+  #       run: |
+  #         echo "## Path Filter Check" >> $GITHUB_STEP_SUMMARY
+  #         echo "" >> $GITHUB_STEP_SUMMARY
+  #         echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+  #         echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+  #         echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+  #         echo "| **Files Changed** | \`${{ steps.filter.outputs.app }}\` |" >> $GITHUB_STEP_SUMMARY
+  #         echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ steps.filter.outputs.app }}" == "true" ]; then
-            echo "Changes detected in it-works-on-my-machine/ - workflow will continue" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No changes in it-works-on-my-machine/ - cancelling workflow" >> $GITHUB_STEP_SUMMARY
-          fi
+  #         if [ "${{ steps.filter.outputs.app }}" == "true" ]; then
+  #           echo "Changes detected in it-works-on-my-machine/ - workflow will continue" >> $GITHUB_STEP_SUMMARY
+  #         else
+  #           echo "No changes in it-works-on-my-machine/ - cancelling workflow" >> $GITHUB_STEP_SUMMARY
+  #         fi
         
-      - name: Cancel workflow if no changes
-        if: steps.filter.outputs.app != 'true'
-        uses: andymckay/cancel-action@0.3
+  #     - name: Cancel workflow if no changes
+  #       if: steps.filter.outputs.app != 'true'
+  #       uses: andymckay/cancel-action@0.3
 
   detect-context:
-    needs: check-paths
-    if: ${{ !failure() && !cancelled() }}
+    #needs: check-paths
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
+    #if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     outputs:
       target_branch: ${{ steps.branch.outputs.name }}
