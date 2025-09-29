@@ -72,21 +72,31 @@ jobs:
     if: ${{ inputs.skip_tests != true && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger tests-and-validations workflow
+      - name: Trigger and wait for tests-and-validations workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/tests-and-validations.yml/dispatches" \
-            -d "{
-              \"ref\": \"${{ needs.detect-context.outputs.target_branch }}\",
-              \"inputs\": {
-                \"target_branch\": \"${{ needs.detect-context.outputs.target_branch }}\",
-                \"skip_stage6\": \"true\"
-              }
-            }"
+          echo "🚀 Triggering tests-and-validations workflow..."
           
-          echo "✅ Tests triggered with skip_stage6=true"
+          gh workflow run tests-and-validations.yml \
+            --ref ${{ needs.detect-context.outputs.target_branch }} \
+            -f target_branch=${{ needs.detect-context.outputs.target_branch }} \
+            -f skip_stage6=true
+          
+          echo "⏳ Waiting for workflow to complete..."
+          
+          # Wait a moment for the run to be created
+          sleep 5
+          
+          # Get the most recent run ID for this workflow
+          RUN_ID=$(gh run list --workflow=tests-and-validations.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          
+          echo "📊 Watching run ID: $RUN_ID"
+          
+          # Wait for completion and check status
+          gh run watch $RUN_ID --exit-status
+          
+          echo "✅ Tests completed successfully"
 
   trigger-deployment:
     needs: [detect-context, run-tests]
