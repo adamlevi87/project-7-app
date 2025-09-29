@@ -1,0 +1,352 @@
+# .github/workflows/unified-ci-pipeline.yml
+
+name: "Unified CI Pipeline"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch (dev/staging/main)'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging  
+          - main
+      # Testing options
+      skip_tests:
+        description: '[Tests] Skip all test stages'
+        required: false
+        default: false
+        type: boolean
+      
+      # Deployment options
+      deploy_action:
+        description: '[Deployment] Action to perform'
+        required: false
+        default: 'build-and-push'
+        type: choice
+        options:
+          - build-and-push
+          - update-digest-only
+          - force-rebuild
+      
+      deploy_auto_merge:
+        description: '[Deployment] Auto-merge GitOps PR (ignored for main)'
+        required: false
+        default: true
+        type: boolean
+      
+      deploy_force_cosign:
+        description: '[Deployment] Force cosign operations'
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches: [dev, staging, main]
+    paths:
+      - 'it-works-on-my-machine/**'
+
+jobs:
+  detect-context:
+    runs-on: ubuntu-latest
+    outputs:
+      target_branch: ${{ steps.branch.outputs.name }}
+    steps:
+      - name: Detect branch
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            BRANCH_NAME="${{ inputs.target_branch }}"
+          else
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          fi
+          
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "Detected branch: $BRANCH_NAME"
+
+      - name: Validate manual trigger
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "${{ steps.branch.outputs.name }}" == "main" ]; then
+            echo "Error: Manual triggers are not allowed on main branch"
+            echo "Main branch deployments must come from merged PRs or direct commits"
+            exit 1
+          fi
+
+      - name: Context Summary
+        if: always()
+        run: |
+          echo "## 🎯 Unified CI Pipeline - Context Detection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Trigger Information" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger Type** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ steps.branch.outputs.name }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "| **Triggered By** | Manual dispatch |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Triggered By** | Push to branch |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Commit SHA** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+  
+  run-tests:
+    needs: detect-context
+    if: ${{ inputs.skip_tests != true && !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Trigger and wait for tests-and-validations workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🚀 Triggering tests-and-validations workflow..."
+          
+          gh workflow run tests-and-validations.yml \
+            --ref ${{ needs.detect-context.outputs.target_branch }} \
+            -f target_branch=${{ needs.detect-context.outputs.target_branch }} \
+            -f skip_stage6=true
+          
+          echo "⏳ Waiting for workflow to complete..."
+          
+          # Wait a moment for the run to be created
+          sleep 5
+          
+          # Get the most recent run ID for this workflow
+          RUN_ID=$(gh run list --workflow=tests-and-validations.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          
+          echo "📊 Watching run ID: $RUN_ID"
+          
+          # Wait for completion and check status
+          gh run watch $RUN_ID --exit-status
+          
+          echo "✅ Tests completed successfully"
+      
+      - name: Tests Summary
+        if: always()
+        run: |
+          echo "## 🧪 Unified CI Pipeline - Testing Phase" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ needs.detect-context.outputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests Skipped** | \`${{ inputs.skip_tests || 'false' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Test Execution" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **tests-and-validations.yml workflow completed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "- All quality checks, tests, and validations passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Ready to proceed with deployment** 🚀" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" == "skipped" ]; then
+            echo "### ⏭️ Tests Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "- Testing phase was skipped by user input" >> $GITHUB_STEP_SUMMARY
+            echo "- Proceeding directly to deployment" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Test Execution Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- **tests-and-validations.yml workflow failed**" >> $GITHUB_STEP_SUMMARY
+            echo "- Review the test workflow logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "- Deployment will be skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+
+  handle-main-release:
+    needs: [detect-context, run-tests]
+    if: ${{ needs.detect-context.outputs.target_branch == 'main' && !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history to detect PR merges
+      
+      - name: Detect merge information
+        id: merge-info
+        run: |
+          echo "Detecting merge information..."
+          
+          COMMIT_SHA="${{ github.sha }}"
+          
+          # Find PR associated with this commit
+          PR_NUMBER=$(gh pr list --state merged --search "$COMMIT_SHA" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR #$PR_NUMBER for commit $COMMIT_SHA"
+            
+            # Get PR details
+            PR_DATA=$(gh pr view $PR_NUMBER --json title,body,headRefName,baseRefName)
+            PR_BODY=$(echo "$PR_DATA" | jq -r '.body')
+            PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+            PR_BASE_REF=$(echo "$PR_DATA" | jq -r '.baseRefName')
+            
+            echo "PR Head Ref: $PR_HEAD_REF"
+            echo "PR Base Ref: $PR_BASE_REF"
+            
+            # Check if this PR came from manual-release.yml
+            if [[ "$PR_HEAD_REF" =~ ^release/ && 
+                  "$PR_BASE_REF" == "main" && 
+                  "$PR_BODY" == *"This PR will be tagged automatically after merge."* ]]; then
+              
+              echo "Release PR detected (from manual-release.yml)"
+              
+              # Extract version from PR body
+              VERSION_LINE=$(echo "$PR_BODY" | grep -o '\*\*Version\*\*: v[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "")
+              if [ -n "$VERSION_LINE" ]; then
+                EXTRACTED_VERSION=$(echo "$VERSION_LINE" | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+')
+                echo "is_release_pr=true" >> $GITHUB_OUTPUT
+                echo "version=$EXTRACTED_VERSION" >> $GITHUB_OUTPUT
+                echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
+              else
+                echo "Release PR but no version found - using patch strategy"
+                echo "is_release_pr=false" >> $GITHUB_OUTPUT
+                echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "Standard PR - using patch strategy"
+              echo "is_release_pr=false" >> $GITHUB_OUTPUT
+              echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "Direct push (no PR found)"
+            echo "is_release_pr=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Trigger and wait for auto-patch-release workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🏷️ Triggering auto-patch-release workflow..."
+          
+          gh workflow run auto-patch-release.yml \
+            --ref main \
+            -f is_release_pr=${{ steps.merge-info.outputs.is_release_pr || 'false' }} \
+            -f version=${{ steps.merge-info.outputs.version || '' }} \
+            -f source_branch=${{ steps.merge-info.outputs.source_branch || '' }}
+          
+          echo "⏳ Waiting for release workflow to complete..."
+          sleep 5
+          
+          RUN_ID=$(gh run list --workflow=auto-patch-release.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          
+          echo "📊 Watching run ID: $RUN_ID"
+          gh run watch $RUN_ID --exit-status
+          
+          echo "✅ Release created successfully"
+      
+      - name: Release Summary
+        if: always()
+        run: |
+          echo "## 🏷️ Unified CI Pipeline - Release Creation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`main\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Is Release PR** | \`${{ steps.merge-info.outputs.is_release_pr || 'false' }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.merge-info.outputs.is_release_pr }}" == "true" ]; then
+            echo "| **Version** | \`${{ steps.merge-info.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Source Branch** | \`${{ steps.merge-info.outputs.source_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Release Created" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **auto-patch-release.yml workflow completed successfully**" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ steps.merge-info.outputs.is_release_pr }}" == "true" ]; then
+              echo "- 📦 **Release Type**: Manual release (version: ${{ steps.merge-info.outputs.version }})" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "- 🔧 **Release Type**: Patch release (auto-bumped)" >> $GITHUB_STEP_SUMMARY
+            fi
+            
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Proceeding to deployment** 🚀" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Release Creation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- **auto-patch-release.yml workflow failed**" >> $GITHUB_STEP_SUMMARY
+            echo "- Review the release workflow logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "- Deployment will be skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+
+  trigger-deployment:
+    needs: [detect-context, run-tests, handle-main-release]
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Trigger and wait for application-deploy workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Triggering application-deploy workflow..."
+          
+          # Determine auto_merge based on branch
+          if [ "${{ needs.detect-context.outputs.target_branch }}" == "main" ]; then
+            AUTO_MERGE="false"
+            echo "Main branch: auto_merge set to false (requires manual approval)"
+          else
+            AUTO_MERGE="${{ inputs.deploy_auto_merge || 'true' }}"
+            echo "Non-main branch: auto_merge set to $AUTO_MERGE"
+          fi
+          
+          gh workflow run application-deploy.yml \
+            --ref ${{ needs.detect-context.outputs.target_branch }} \
+            -f target_branch=${{ needs.detect-context.outputs.target_branch }} \
+            -f action=${{ inputs.deploy_action || 'build-and-push' }} \
+            -f auto_merge=$AUTO_MERGE \
+            -f force_cosign=${{ inputs.deploy_force_cosign || 'false' }}
+      
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## 🚀 Unified CI Pipeline - Deployment Phase" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ needs.detect-context.outputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | \`${{ inputs.deploy_action || 'build-and-push' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auto-merge** | \`${{ inputs.deploy_auto_merge || 'true' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Force Cosign** | \`${{ inputs.deploy_force_cosign || 'false' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Deployment Triggered" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **application-deploy.yml workflow triggered successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Next Steps:" >> $GITHUB_STEP_SUMMARY
+            echo "1. 🐳 Building and pushing container image to ECR" >> $GITHUB_STEP_SUMMARY
+            echo "2. 📝 Creating GitOps PR with updated image digest" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ needs.detect-context.outputs.target_branch }}" == "main" ]; then
+              echo "3. ⏳ **Awaiting manual approval** (production deployment)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "3. 🔄 Auto-merging GitOps PR (dev/staging)" >> $GITHUB_STEP_SUMMARY
+              echo "4. 🎯 ArgoCD will automatically sync changes" >> $GITHUB_STEP_SUMMARY
+            fi
+          elif [ "${{ job.status }}" == "skipped" ]; then
+            echo "### ⏭️ Deployment Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "- Deployment was skipped due to previous failures or conditions" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Deployment Trigger Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed to trigger application-deploy.yml workflow" >> $GITHUB_STEP_SUMMARY
+            echo "- Review logs above for error details" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY

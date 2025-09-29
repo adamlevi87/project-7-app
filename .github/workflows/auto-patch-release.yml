@@ -7,23 +7,25 @@ concurrency:
   cancel-in-progress: false
   
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'it-works-on-my-machine/**'
-  pull_request:
-    types: [closed]
-    branches: [main]
-    paths:
-      - 'it-works-on-my-machine/**'
+  workflow_dispatch:
+    inputs:
+      is_release_pr:
+        description: 'Is this from a release PR merge?'
+        required: false
+        default: 'false'
+        type: string
+      version:
+        description: 'Release version (if release PR)'
+        required: false
+        type: string
+      source_branch:
+        description: 'Source branch of the merge'
+        required: false
+        type: string
 
 jobs:
-  auto-patch:
-    if: |
-      github.event_name == 'push' ||
-      github.event.pull_request.merged == true
+  create-release:
     runs-on: ubuntu-latest
-    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,117 +35,54 @@ jobs:
       - name: Determine tagging strategy
         id: strategy
         run: |
-          # Default to patch strategy
-          echo "strategy=patch" >> $GITHUB_OUTPUT
-          echo "skip_processing=false" >> $GITHUB_OUTPUT
+          echo "Analyzing release strategy..."
           
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            # Handle PR closed events - always process
-            PR_TITLE="${{ github.event.pull_request.title }}"
-            PR_BODY="${{ github.event.pull_request.body }}"
-            PR_HEAD_REF="${{ github.event.pull_request.head.ref }}"
-            PR_BASE_REF="${{ github.event.pull_request.base.ref }}"
-            
-            # Get merge commit author info
-            MERGE_COMMIT_SHA="${{ github.event.pull_request.merge_commit_sha }}"
-            COMMIT_AUTHOR=$(git log -1 --format='%an' "$MERGE_COMMIT_SHA" 2>/dev/null || echo "")
-            COMMIT_EMAIL=$(git log -1 --format='%ae' "$MERGE_COMMIT_SHA" 2>/dev/null || echo "")
-            
-            echo "PR Title: $PR_TITLE"
-            echo "PR Head Ref: $PR_HEAD_REF"
-            echo "PR Base Ref: $PR_BASE_REF"
-            echo "Merge Commit Author: $COMMIT_AUTHOR"
-            echo "Merge Commit Email: $COMMIT_EMAIL"
-            
-            # Check conditions for release strategy
-            if [[ "$PR_HEAD_REF" =~ ^release/ && 
-                  "$PR_BASE_REF" == "main" && 
-                  "$PR_BODY" == *"This PR will be tagged automatically after merge."*
-                  ]]; then
-              
-              echo "All conditions met for release strategy"
-              
-              # Extract version from PR body
-              VERSION_LINE=$(echo "$PR_BODY" | grep -o '\*\*Version\*\*: v[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "")
-              if [ -n "$VERSION_LINE" ]; then
-                EXTRACTED_VERSION=$(echo "$VERSION_LINE" | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+')
-                echo "strategy=release" >> $GITHUB_OUTPUT
-                echo "version=$EXTRACTED_VERSION" >> $GITHUB_OUTPUT
-                echo "Using release strategy with version: $EXTRACTED_VERSION"
-              else
-                echo "Version not found in PR body - falling back to patch strategy"
-              fi
-            else
-              echo "Conditions not met for release strategy:"
-              echo "  - Source branch (dev/staging): $([[ "$PR_HEAD_REF" == "dev" || "$PR_HEAD_REF" == "staging" ]] && echo "✓" || echo "✗")"
-              echo "  - Target branch (main): $([[ "$PR_BASE_REF" == "main" ]] && echo "✓" || echo "✗")"
-              echo "  - Auto-merge text in body: $([[ "$PR_BODY" == *"This PR will be tagged automatically after merge."* ]] && echo "✓" || echo "✗")"
-              echo "  - Author is github-actions[bot]: $([[ "$COMMIT_AUTHOR" == "github-actions[bot]" ]] && echo "✓" || echo "✗")"
-              echo "  - Email is github-actions[bot]: $([[ "$COMMIT_EMAIL" == "github-actions[bot]@users.noreply.github.com" ]] && echo "✓" || echo "✗")"
-              echo "Using patch strategy"
-            fi
-          elif [ "${{ github.event_name }}" == "push" ]; then
-            echo "Push event detected - checking if this is a PR merge commit..."
-            
-            # Debug the merge commit detection
-            echo "DEBUG: HEAD commit: $(git rev-parse HEAD)"
-            echo "DEBUG: Full parent info: $(git rev-list --parents -n 1 HEAD)"
-            PARENT_COUNT=$(git cat-file -p HEAD | grep '^parent' | wc -l)
-            echo "DEBUG: Calculated parent count: $PARENT_COUNT"
-            
-            if [ "$PARENT_COUNT" -gt 1 ]; then
-              echo "This is a merge commit from PR - skipping release creation"
-              echo "skip_processing=true" >> $GITHUB_OUTPUT
-            else
-              echo "This is a direct push commit - creating patch release"
-              echo "skip_processing=false" >> $GITHUB_OUTPUT
-            fi
+          if [ "${{ inputs.is_release_pr }}" == "true" ] && [ -n "${{ inputs.version }}" ]; then
+            echo "strategy=release" >> $GITHUB_OUTPUT
+            echo "version=${{ inputs.version }}" >> $GITHUB_OUTPUT
+            echo "Using release strategy with version: ${{ inputs.version }}"
+          else
+            echo "strategy=patch" >> $GITHUB_OUTPUT
+            echo "Using patch bump strategy"
           fi
           
       - name: Get latest tag
         id: latest-tag
-        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
           echo "Latest tag: $LATEST_TAG"
           
-      - name: Calculate version
+      - name: Calculate new version
         id: new-version
-        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           if [ "${{ steps.strategy.outputs.strategy }}" == "release" ]; then
-            # Use version from PR title/labels
             NEW_VERSION="${{ steps.strategy.outputs.version }}"
-            echo "Using release version: $NEW_VERSION"
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "Using provided version: $NEW_VERSION"
           else
-            # Patch bump
             LATEST="${{ steps.latest-tag.outputs.tag }}"
             VERSION=${LATEST#v}
             IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
             NEW_PATCH=$((PATCH + 1))
             NEW_VERSION="v${MAJOR}.${MINOR}.${NEW_PATCH}"
-            echo "Patch bump: $LATEST → $NEW_VERSION"
+            echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+            echo "Patch bump: $LATEST to $NEW_VERSION"
           fi
           
-          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
-          
       - name: Validate version
-        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           LATEST="${{ steps.latest-tag.outputs.tag }}"
           NEW="${{ steps.new-version.outputs.version }}"
           
-          # Basic validation that new version is different from latest
           if [ "$LATEST" == "$NEW" ]; then
-            echo "Error: New version ($NEW) is same as latest tag ($LATEST)"
+            echo "Error: New version is same as latest tag"
             exit 1
           fi
           
-          echo "Version validation passed: $LATEST → $NEW"
+          echo "Version validation passed"
           
       - name: Create tag and release
-        if: steps.strategy.outputs.skip_processing != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -151,60 +90,73 @@ jobs:
           NEW_VERSION="${{ steps.new-version.outputs.version }}"
           STRATEGY="${{ steps.strategy.outputs.strategy }}"
           
-          # Create tag
           git tag "$NEW_VERSION"
           git push origin "$NEW_VERSION"
+          echo "Tag created and pushed: $NEW_VERSION"
           
-          # Create release notes based on strategy
           if [ "$STRATEGY" == "release" ]; then
-            # Scenario 1: Manual release workflow PR
-            RELEASE_NOTES="Release created from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+            RELEASE_NOTES="Release $NEW_VERSION
 
-            **Source**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
-            **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
-            
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
-            # Scenario 2: Any other merged PR (hotfix, cherry-pick, etc.)
-            RELEASE_NOTES="Patch release from PR #${{ github.event.pull_request.number }}: ${{ github.event.pull_request.title }}
+            Triggered by: unified-ci-pipeline workflow
+            Source Branch: ${{ inputs.source_branch }}
+            Release Type: Manual release from release PR
 
-            **Source**: ${{ github.event.pull_request.head.ref }} → ${{ github.event.pull_request.base.ref }}
-            **Merged by**: @${{ github.event.pull_request.merged_by.login }}"
-            
+            This release was created automatically after merging a release PR to main."
           else
-            # Scenario 3: Direct push or anything else
-            RELEASE_NOTES="Patch release from direct push to main"
+            if [ -n "${{ inputs.source_branch }}" ]; then
+              RELEASE_NOTES="Patch Release $NEW_VERSION
+
+              Triggered by: unified-ci-pipeline workflow
+              Source Branch: ${{ inputs.source_branch }}
+              Release Type: Automatic patch bump
+
+              This patch release was created automatically from changes merged to main."
+            else
+              RELEASE_NOTES="Patch Release $NEW_VERSION
+
+              Triggered by: unified-ci-pipeline workflow
+              Release Type: Automatic patch bump (direct push)
+
+              This patch release was created automatically from a direct push to main."
+            fi
           fi
           
-          # Create GitHub release
           gh release create "$NEW_VERSION" \
             --title "Release $NEW_VERSION" \
             --notes "$RELEASE_NOTES" \
             --latest
+          
+          echo "GitHub release created: $NEW_VERSION"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Auto Patch Summary
+      - name: Release Summary
         if: always()
         run: |
-          echo "## 🏷️ Auto Patch Release Summary" >> $GITHUB_STEP_SUMMARY
-          echo "=================================" >> $GITHUB_STEP_SUMMARY
-          echo "**Event Type:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Strategy:** ${{ steps.strategy.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Auto Patch Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Strategy | ${{ steps.strategy.outputs.strategy }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Is Release PR | ${{ inputs.is_release_pr }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Source Branch | ${{ inputs.source_branch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Latest Tag | ${{ steps.latest-tag.outputs.tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| New Version | ${{ steps.new-version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          if [ "${{ steps.strategy.outputs.skip_processing }}" == "true" ]; then
-            echo "**Processing:** Skipped (merge commit detected)" >> $GITHUB_STEP_SUMMARY
-            echo "**Reason:** PR closed event will handle release" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Processing:** Completed" >> $GITHUB_STEP_SUMMARY
-            echo "**Version Created:** ${{ steps.new-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
-            
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### Release Created Successfully" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
             if [ "${{ steps.strategy.outputs.strategy }}" == "release" ]; then
-              echo "**Release Type:** Manual release workflow" >> $GITHUB_STEP_SUMMARY
-            elif [ "${{ github.event_name }}" == "pull_request" ]; then
-              echo "**Release Type:** PR merge" >> $GITHUB_STEP_SUMMARY
+              echo "- Type: Manual release" >> $GITHUB_STEP_SUMMARY
+              echo "- Version: ${{ steps.new-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
             else
-              echo "**Release Type:** Direct push" >> $GITHUB_STEP_SUMMARY
+              echo "- Type: Automatic patch bump" >> $GITHUB_STEP_SUMMARY
+              echo "- Bump: ${{ steps.latest-tag.outputs.tag }} to ${{ steps.new-version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
             fi
+          else
+            echo "### Release Creation Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Review the workflow logs for details." >> $GITHUB_STEP_SUMMARY
           fi
-          
-          echo "=================================" >> $GITHUB_STEP_SUMMARY
