@@ -320,7 +320,7 @@ jobs:
       contents: write        # Required to create branches and commit
       pull-requests: write   # Required to create and merge PRs
       actions: read         # Standard read access
-    if: ${{ inputs.skip_stage1 != true && !failure() }}
+    if: ${{ inputs.skip_stage_1 != true && !failure() && !cancelled() }}
     outputs:
       changes_required: ${{ steps.dockerfile_check.outputs.changes_required }}
     steps:
