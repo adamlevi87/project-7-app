@@ -555,35 +555,78 @@ jobs:
           fi
       
       - name: Build Summary
+        if: always()
         run: |
-          echo "## 🚀 Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ github.event.inputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Strategy:** ${{ steps.build-strategy.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Application Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          # ECR Digest Prior to the changes
-          # no condition, if there are no digest the job fails anyway
-          echo "- **ECR Digest Prior to the changes:** ${{ steps.ecr-check.outputs.existing_digest }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | \`${{ github.event.inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | \`${{ github.event.inputs.action }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Strategy** | \`${{ steps.build-strategy.outputs.strategy }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auto-merge** | \`${{ github.event.inputs.auto_merge }}\` |" >> $GITHUB_STEP_SUMMARY
           
-          # If there were changes (meaning push = true)-> print the new digest which is the final digest
-          if [ "${{ steps.push-decision.outputs.should_push }}" == "true" ]; then
-            echo "- **ECR Digest after the changes:** ${{ steps.final-digest.outputs.digest_only }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "| **Tag** | \`${{ github.event.inputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
           fi
-
-          echo "- **Content Tag:** ${{ steps.content-hash.outputs.content_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          echo "### Build & Push Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Content Tag** | \`${{ steps.content-hash.outputs.content_tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **ECR Digest (Before)** | \`${{ steps.ecr-check.outputs.existing_digest }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.push-decision.outputs.should_push }}" == "true" ]; then
+            echo "| **ECR Digest (After)** | \`${{ steps.final-digest.outputs.digest_only }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Image Pushed** | ✅ Yes |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Image Pushed** | ⏭️ No (already exists) |" >> $GITHUB_STEP_SUMMARY
+          fi
           
           if [ "${{ steps.build-strategy.outputs.should_build }}" == "true" ]; then
-            echo "- **Built Image:** ${{ steps.meta.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
-            #echo "- **Local content-hash:** ${{ steps.content-hash.outputs.content_hash }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Pushed to ECR:** ${{ steps.push-decision.outputs.should_push }}" >> $GITHUB_STEP_SUMMARY
+            echo "| **Built Image Tag** | \`${{ steps.meta.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
           
-          echo "- **GitOps Changed:** ${{ steps.check-gitops-changes.outputs.changed }}" >> $GITHUB_STEP_SUMMARY
-          
+          echo "### GitOps Integration" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.check-gitops-changes.outputs.changed }}" == "true" ]; then
-            echo "- **PR Created:** #${{ steps.create-pr.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Auto-merge:** ${{ github.event.inputs.auto_merge }}" >> $GITHUB_STEP_SUMMARY
+            echo "| Status | Details |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|---------|" >> $GITHUB_STEP_SUMMARY
+            echo "| **GitOps Changes** | ✅ Detected |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Pull Request** | [#${{ steps.create-pr.outputs.pr_number }}](https://github.com/${{ github.repository }}/pull/${{ steps.create-pr.outputs.pr_number }}) |" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ github.event.inputs.auto_merge }}" == "true" ] && [ "${{ github.event.inputs.target_branch }}" != "main" ]; then
+              echo "| **Merge Status** | 🔄 Auto-merged |" >> $GITHUB_STEP_SUMMARY
+            elif [ "${{ github.event.inputs.target_branch }}" == "main" ]; then
+              echo "| **Merge Status** | ⏳ Awaiting manual approval (production) |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| **Merge Status** | ⏳ Awaiting manual merge |" >> $GITHUB_STEP_SUMMARY
+            fi
           else
-            echo "- **Result:** No changes needed - everything up to date ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- ℹ️ **No GitOps changes needed** - Image digest unchanged" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Deployment Successful" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.check-gitops-changes.outputs.changed }}" == "true" ]; then
+              echo "- Container image built and pushed to ECR" >> $GITHUB_STEP_SUMMARY
+              echo "- GitOps repository updated with new image digest" >> $GITHUB_STEP_SUMMARY
+              if [ "${{ github.event.inputs.target_branch }}" == "main" ]; then
+                echo "- **Action Required:** Manually review and merge PR #${{ steps.create-pr.outputs.pr_number }}" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "- ArgoCD will automatically sync the changes" >> $GITHUB_STEP_SUMMARY
+              fi
+            else
+              echo "- No changes required - everything is up to date" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "### ❌ Deployment Failed" >> $GITHUB_STEP_SUMMARY
+            echo "Review the logs above for error details" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
           
