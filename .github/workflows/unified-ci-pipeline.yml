@@ -66,6 +66,26 @@ jobs:
           
           echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
           echo "Detected branch: $BRANCH_NAME"
+
+      - name: Context Summary
+        if: always()
+        run: |
+          echo "## 🎯 Unified CI Pipeline - Context Detection" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Trigger Information" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger Type** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ steps.branch.outputs.name }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "| **Triggered By** | Manual dispatch |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Triggered By** | Push to branch |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Commit SHA** | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
   
   run-tests:
     needs: detect-context
@@ -100,6 +120,42 @@ jobs:
           gh run watch $RUN_ID --exit-status
           
           echo "✅ Tests completed successfully"
+      
+      - name: Tests Summary
+        if: always()
+        run: |
+          echo "## 🧪 Unified CI Pipeline - Testing Phase" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ needs.detect-context.outputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tests Skipped** | \`${{ inputs.skip_tests || 'false' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Test Execution" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **tests-and-validations.yml workflow completed successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "- All 5 test stages passed:" >> $GITHUB_STEP_SUMMARY
+            echo "  - Stage 1: Code Quality & Standards ✅" >> $GITHUB_STEP_SUMMARY
+            echo "  - Stage 2: Testing Suite ✅" >> $GITHUB_STEP_SUMMARY
+            echo "  - Stage 3: Security Scanning ✅" >> $GITHUB_STEP_SUMMARY
+            echo "  - Stage 4: Container Validation ✅" >> $GITHUB_STEP_SUMMARY
+            echo "  - Stage 5: Performance & Compliance ✅" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Ready to proceed with deployment** 🚀" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" == "skipped" ]; then
+            echo "### ⏭️ Tests Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "- Testing phase was skipped by user input" >> $GITHUB_STEP_SUMMARY
+            echo "- Proceeding directly to deployment" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Test Execution Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- **tests-and-validations.yml workflow failed**" >> $GITHUB_STEP_SUMMARY
+            echo "- Review the test workflow logs for details" >> $GITHUB_STEP_SUMMARY
+            echo "- Deployment will be skipped" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
 
   trigger-deployment:
     needs: [detect-context, run-tests]
@@ -136,3 +192,81 @@ jobs:
           gh run watch $RUN_ID --exit-status
           
           echo "✅ Deployment completed successfully for ${{ needs.detect-context.outputs.target_branch }}"
+      
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## 🚀 Unified CI Pipeline - Deployment Phase" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ needs.detect-context.outputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | \`${{ inputs.deploy_action || 'build-and-push' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auto-merge** | \`${{ inputs.deploy_auto_merge || 'true' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Force Cosign** | \`${{ inputs.deploy_force_cosign || 'false' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### ✅ Deployment Triggered" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **application-deploy.yml workflow triggered successfully**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "#### Next Steps:" >> $GITHUB_STEP_SUMMARY
+            echo "1. 🐳 Building and pushing container image to ECR" >> $GITHUB_STEP_SUMMARY
+            echo "2. 📝 Creating GitOps PR with updated image digest" >> $GITHUB_STEP_SUMMARY
+            
+            if [ "${{ needs.detect-context.outputs.target_branch }}" == "main" ]; then
+              echo "3. ⏳ **Awaiting manual approval** (production deployment)" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "3. 🔄 Auto-merging GitOps PR (dev/staging)" >> $GITHUB_STEP_SUMMARY
+              echo "4. 🎯 ArgoCD will automatically sync changes" >> $GITHUB_STEP_SUMMARY
+            fi
+          elif [ "${{ job.status }}" == "skipped" ]; then
+            echo "### ⏭️ Deployment Skipped" >> $GITHUB_STEP_SUMMARY
+            echo "- Deployment was skipped due to previous failures or conditions" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ❌ Deployment Trigger Failed" >> $GITHUB_STEP_SUMMARY
+            echo "- Failed to trigger application-deploy.yml workflow" >> $GITHUB_STEP_SUMMARY
+            echo "- Review logs above for error details" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+        
+      - name: Pipeline Overall Summary
+        if: always()
+        run: |
+          echo "## 📊 Unified CI Pipeline - Overall Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pipeline Stages" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **1. Context Detection** | ✅ Completed |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.run-tests.result }}" == "success" ]; then
+            echo "| **2. Testing (5 stages)** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.run-tests.result }}" == "skipped" ]; then
+            echo "| **2. Testing (5 stages)** | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **2. Testing (5 stages)** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "| **3. Deployment** | ✅ Triggered |" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ job.status }}" == "skipped" ]; then
+            echo "| **3. Deployment** | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **3. Deployment** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ] && [ "${{ needs.run-tests.result }}" == "success" ]; then
+            echo "### ✅ Pipeline Completed Successfully" >> $GITHUB_STEP_SUMMARY
+            echo "- All tests passed" >> $GITHUB_STEP_SUMMARY
+            echo "- Deployment initiated" >> $GITHUB_STEP_SUMMARY
+            echo "- Monitor the application-deploy workflow for final deployment status" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### ⚠️ Pipeline Completed with Issues" >> $GITHUB_STEP_SUMMARY
+            echo "- Review the stage-specific summaries above for details" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
