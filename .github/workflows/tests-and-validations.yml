@@ -1,6 +1,6 @@
 # .github/workflows/tests-and-validations.yml
 
-name: "CI Plan - Tests and Validations"
+name: "CI - Step 1 - Tests and Validations"
 
 on:
   # push:
