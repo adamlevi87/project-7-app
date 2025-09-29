@@ -7,15 +7,21 @@ concurrency:
   cancel-in-progress: false
   
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'it-works-on-my-machine/**'
-  pull_request:
-    types: [closed]
-    branches: [main]
-    paths:
-      - 'it-works-on-my-machine/**'
+  workflow_dispatch:
+    inputs:
+      is_release_pr:
+        description: 'Is this from a release PR merge?'
+        required: false
+        default: 'false'
+        type: string
+      version:
+        description: 'Release version (if release PR)'
+        required: false
+        type: string
+      source_branch:
+        description: 'Source branch of the merge'
+        required: false
+        type: string
 
 jobs:
   auto-patch:
