@@ -136,12 +136,7 @@ jobs:
           if [ "${{ job.status }}" == "success" ]; then
             echo "### ✅ Test Execution" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ **tests-and-validations.yml workflow completed successfully**" >> $GITHUB_STEP_SUMMARY
-            echo "- All 5 test stages passed:" >> $GITHUB_STEP_SUMMARY
-            echo "  - Stage 1: Code Quality & Standards ✅" >> $GITHUB_STEP_SUMMARY
-            echo "  - Stage 2: Testing Suite ✅" >> $GITHUB_STEP_SUMMARY
-            echo "  - Stage 3: Security Scanning ✅" >> $GITHUB_STEP_SUMMARY
-            echo "  - Stage 4: Container Validation ✅" >> $GITHUB_STEP_SUMMARY
-            echo "  - Stage 5: Performance & Compliance ✅" >> $GITHUB_STEP_SUMMARY
+            echo "- All quality checks, tests, and validations passed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Ready to proceed with deployment** 🚀" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ job.status }}" == "skipped" ]; then
