@@ -305,15 +305,32 @@ jobs:
     ###############
     ##### Summary
     - name: Stage 1 Summary
-      if: always()  # Always run, but show actual results
+      if: always()
       run: |
-        echo "📊 Stage 1: Code Quality & Standards Validation Results"
-        echo "Status: ${{ job.status }}"
+        echo "## 📊 Stage 1: Code Quality & Standards Validation" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Checks Performed" >> $GITHUB_STEP_SUMMARY
+        echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+        
         if [ "${{ job.status }}" == "success" ]; then
-          echo "✅ All checks passed"
+          echo "| **Lockfile Integrity** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **NPM Audit** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Node Version Consistency** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Dockle Security Scan** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Hadolint Dockerfile Lint** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **ESLint Code Analysis** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Prettier Formatting** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Shellcheck Scripts** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **All quality checks passed**" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ Some checks failed - see above for details"
+          echo "| **Overall Status** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Some checks failed** - Review logs above for details" >> $GITHUB_STEP_SUMMARY
         fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
     #####
     ###############
   ##############################
@@ -422,6 +439,31 @@ jobs:
         docker rm test-app || true
         docker rmi test-image:ci-${GITHUB_SHA} || true
     #####
+    - name: Stage 2 Summary
+      if: always()
+      run: |
+        echo "## 📊 Stage 2: Testing Suite" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Tests Performed" >> $GITHUB_STEP_SUMMARY
+        echo "| Test Type | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ job.status }}" == "success" ]; then
+          echo "| **NPM Tests** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Unit Tests** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Integration Tests** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- 📦 Coverage reports uploaded" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **All tests passed**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| **Overall Status** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Some tests failed** - Review logs above for details" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
     ###############
   ##############################
     
@@ -568,17 +610,28 @@ jobs:
     - name: Stage 3 Summary
       if: always()
       run: |
-        echo "📊 Stage 3: Security Scanning Results"
-        echo "Status: ${{ job.status }}"
+        echo "## 📊 Stage 3: Security Scanning" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Security Scans Performed" >> $GITHUB_STEP_SUMMARY
+        echo "| Scan Type | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+        
         if [ "${{ job.status }}" == "success" ]; then
-          echo "✅ All security scans passed"
-          echo "  - Dependency vulnerabilities: ✅"
-          echo "  - Filesystem security: ✅"
-          echo "  - Container CVEs: ✅"
-          echo "  - Static analysis: ✅"
+          echo "| **Snyk Dependency Scan** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trivy Filesystem Scan** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trivy Container CVE Scan** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Semgrep SAST** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **No security vulnerabilities detected**" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ Security issues found - see above for details"
+          echo "| **Overall Status** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Security issues found** - Review logs above for details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **Action Required:** Address security vulnerabilities before deployment" >> $GITHUB_STEP_SUMMARY
         fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
     #####
     ###############
   ##############################
@@ -713,17 +766,32 @@ jobs:
       - name: Stage 4 Summary
         if: always()
         run: |
-          echo "📊 Stage 4: Container Validation Results"
-          echo "Status: ${{ job.status }}"
+          echo "## 📊 Stage 4: Container Validation" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Validation Checks" >> $GITHUB_STEP_SUMMARY
+          echo "| Check Type | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          
           if [ "${{ job.status }}" == "success" ]; then
-            echo "✅ All container validation checks passed"
-            echo "  - Image layer efficiency: ✅"
-            echo "  - Container structure: ✅"
-            echo "  - Runtime environment: ✅"
-            echo "  - Application startup: ✅"
+            echo "| **Dive Layer Analysis** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Container Structure Tests** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Runtime Validation** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Application Startup** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Container Quality" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Image layer efficiency meets threshold" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ All required files present" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Node.js and npm accessible" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ Application health check responding" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Container is production-ready**" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Container validation issues found - see above for details"
+            echo "| **Overall Status** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "❌ **Container validation failed** - Review logs above for details" >> $GITHUB_STEP_SUMMARY
           fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
       #####
       ###############
   ##############################
@@ -1025,19 +1093,33 @@ jobs:
     - name: Stage 5 Summary
       if: always()
       run: |
-        echo "📊 Stage 5: Performance & Compliance Results"
-        echo "Status: ${{ job.status }}"
+        echo "## 📊 Stage 5: Performance & Compliance" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Checks Performed" >> $GITHUB_STEP_SUMMARY
+        echo "| Check Type | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+        
         if [ "${{ job.status }}" == "success" ]; then
-          echo "✅ All performance and compliance checks passed"
-          echo "  - Performance baseline: ✅"
-          echo "  - Lighthouse audit: ✅"
-          echo "  - Bundle analysis: ✅"
-          echo "  - Code quality (SonarQube): ✅"
-          echo "  - License compliance: ✅"
-          echo "  - Secret detection: ✅"
+          echo "| **Performance Baseline** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Lighthouse Audit** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Bundle Analysis** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **SonarQube Code Quality** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **License Compliance** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Secret Detection** | ✅ Passed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Performance Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Container resource usage within limits" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ No hardcoded secrets detected" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ All dependencies properly licensed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **All performance and compliance checks passed**" >> $GITHUB_STEP_SUMMARY
         else
-          echo "❌ Performance or compliance issues found - see above for details"
+          echo "| **Overall Status** | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "❌ **Performance or compliance issues found** - Review logs above for details" >> $GITHUB_STEP_SUMMARY
         fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
     #####
     ###############
   ##############################
@@ -1069,3 +1151,30 @@ jobs:
             }"
           
           echo "✅ Application deploy workflow triggered for ${{ inputs.target_branch }} environment"
+          
+      - name: Stage 6 Summary
+        if: always()
+        run: |
+          echo "## 📊 Stage 6: Artifact Deployment Trigger" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Target Branch** | \`${{ inputs.target_branch }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tag** | \`${{ inputs.tag || 'N/A' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Action** | \`build-and-push\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auto Merge** | \`true\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "### Actions Taken" >> $GITHUB_STEP_SUMMARY
+            echo "- ✅ **Application deployment workflow triggered**" >> $GITHUB_STEP_SUMMARY
+            echo "- 🚀 Building and pushing container image to ECR" >> $GITHUB_STEP_SUMMARY
+            echo "- 📝 Creating GitOps PR with updated image digest" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **Deployment pipeline initiated successfully**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Failed to trigger deployment workflow** - Review logs above for details" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
