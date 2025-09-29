@@ -51,7 +51,7 @@ on:
   
   pull_request:
     types: [closed]
-    branches: [staging, main]
+    branches: [dev, staging, main]
     paths:
       - 'it-works-on-my-machine/**'
 
