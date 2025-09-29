@@ -106,20 +106,33 @@ jobs:
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger application-deploy workflow
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Trigger and wait for application-deploy workflow
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -X POST \
-            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/application-deploy.yml/dispatches" \
-            -d "{
-              \"ref\": \"${{ needs.detect-context.outputs.target_branch }}\",
-              \"inputs\": {
-                \"target_branch\": \"${{ needs.detect-context.outputs.target_branch }}\",
-                \"action\": \"${{ inputs.deploy_action || 'build-and-push' }}\",
-                \"auto_merge\": \"${{ inputs.deploy_auto_merge || 'true' }}\",
-                \"force_cosign\": \"${{ inputs.deploy_force_cosign || 'false' }}\"
-              }
-            }"
+          echo "🚀 Triggering application-deploy workflow..."
           
-          echo "✅ Deployment triggered for ${{ needs.detect-context.outputs.target_branch }}"
+          gh workflow run application-deploy.yml \
+            --ref ${{ needs.detect-context.outputs.target_branch }} \
+            -f target_branch=${{ needs.detect-context.outputs.target_branch }} \
+            -f action=${{ inputs.deploy_action || 'build-and-push' }} \
+            -f auto_merge=${{ inputs.deploy_auto_merge || 'true' }} \
+            -f force_cosign=${{ inputs.deploy_force_cosign || 'false' }}
+          
+          echo "⏳ Waiting for deployment workflow to complete..."
+          
+          # Wait a moment for the run to be created
+          sleep 5
+          
+          # Get the most recent run ID for this workflow
+          RUN_ID=$(gh run list --workflow=application-deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')
+          
+          echo "📊 Watching run ID: $RUN_ID"
+          
+          # Wait for completion and check status
+          gh run watch $RUN_ID --exit-status
+          
+          echo "✅ Deployment completed successfully for ${{ needs.detect-context.outputs.target_branch }}"
