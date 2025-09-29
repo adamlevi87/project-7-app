@@ -1,6 +1,6 @@
 # .github/workflows/base-image-management.yml
 
-name: "Base Image Management - CI- Step 0"
+name: "CI - Step 0 - Base Image Management"
 
 on:
   # push:
@@ -22,6 +22,10 @@ on:
           - dev
           - staging  
           - main
+      tag:
+        description: 'Git tag to deploy (for main branch only)'
+        required: false
+        type: string
       base_image_with_digest:
         description: 'Base image with multi-arch manifest digest'
         required: false
@@ -71,7 +75,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_branch }}
+          ref: ${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}
       
       ############################## Stage 0: Base Image Management & Supply Chain Security
       ############### Input Parsing and Validation
@@ -551,9 +555,10 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/actions/workflows/tests-and-validations.yml/dispatches" \
             -d "{
-              \"ref\": \"${{ inputs.target_branch }}\",
+              \"ref\": \"${{ inputs.target_branch == 'main' && inputs.tag != '' && inputs.tag || inputs.target_branch }}\",
               \"inputs\": {
                 \"target_branch\": \"${{ inputs.target_branch }}\",
+                \"tag\": \"${{ inputs.tag || '' }}\",
                 \"skip_stage_6\": \"false\"
               }
             }"
