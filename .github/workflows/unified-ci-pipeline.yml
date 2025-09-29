@@ -1,4 +1,4 @@
-# .github/workflows/unified_ci_pipeline.yml
+# .github/workflows/unified-ci-pipeline.yml
 
 name: "Unified CI Pipeline"
 
