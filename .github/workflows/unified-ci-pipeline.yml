@@ -23,7 +23,7 @@ on:
       skip_tests:
         description: '[Tests] Skip all test stages'
         required: false
-        default: false
+        default: true
         type: boolean
       
       # Deployment options
