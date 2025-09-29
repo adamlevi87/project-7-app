@@ -2,7 +2,11 @@
 
 name: "Unified CI Pipeline"
 
-run-name: "Unified CI Pipeline - [${{ github.event_name }}] ${{ github.ref_name }} - ${{ github.event.head_commit.message || 'Manual trigger' }}"
+run-name: >-
+  Unified CI Pipeline [${{ github.event_name }}] ${{ github.ref_name }} - 
+  ${{ github.event_name == 'pull_request' && format('PR #{0} merged', github.event.pull_request.number) || 
+      github.event_name == 'workflow_dispatch' && 'Manual trigger' || 
+      github.event.head_commit.message }}
 
 on:
   workflow_dispatch:
@@ -48,9 +52,73 @@ on:
     branches: [dev, staging, main]
     paths:
       - 'it-works-on-my-machine/**'
+  
+  pull_request:
+    types: [closed]
+    branches: [dev, staging, main]
+    paths:
+      - 'it-works-on-my-machine/**'
 
 jobs:
+  check-should-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Determine if workflow should run
+        id: check
+        run: |
+          # Always run for manual triggers
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Manual trigger - will run"
+            exit 0
+          fi
+          
+          # Always run for PR events
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "PR event - will run"
+            exit 0
+          fi
+          
+          # For push events: check if this is a merge commit
+          echo "Push event detected - checking commit type..."
+          PARENT_COUNT=$(git cat-file -p HEAD | grep '^parent' | wc -l)
+          echo "Parent count: $PARENT_COUNT"
+          
+          if [ "$PARENT_COUNT" -gt 1 ]; then
+            echo "should_run=false" >> $GITHUB_OUTPUT
+            echo "Merge commit detected - will cancel workflow"
+          else
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            echo "Direct push commit - will run"
+          fi
+      
+      - name: Summary
+        run: |
+          echo "## Workflow Execution Check" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Event Type** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Should Run** | \`${{ steps.check.outputs.should_run }}\` |" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ steps.check.outputs.should_run }}" == "false" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Merge commit detected - cancelling workflow (PR event already handled this)" >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Cancel workflow if merge commit
+        if: steps.check.outputs.should_run == 'false'
+        uses: andymckay/cancel-action@0.3
+
   detect-context:
+    needs: check-should-run
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     outputs:
       target_branch: ${{ steps.branch.outputs.name }}
