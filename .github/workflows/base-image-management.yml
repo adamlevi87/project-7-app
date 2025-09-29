@@ -545,7 +545,7 @@ jobs:
     needs: stage1-handling-dockerfile
     #if: ${{ inputs.skip_stage_2 != true && !failure() && (inputs.skip_stage_1 == true || (needs.stage1-handling-dockerfile.outputs.changes_required == 'true' && inputs.target_branch != 'main')) }}
     #if: ${{ inputs.skip_stage_2 != true && !failure() && needs.stage1-handling-dockerfile.outputs.changes_required == 'false' }}
-    if: ${{ inputs.skip_stage_2 != true && !failure() && (inputs.skip_stage_1 == true || needs.stage1-handling-dockerfile.outputs.changes_required == 'false) }}
+    if: ${{ inputs.skip_stage_2 != true && !failure() && (inputs.skip_stage_1 == true || needs.stage1-handling-dockerfile.outputs.changes_required == 'false') }}
     
     steps:
       - name: Trigger Main CI Workflow
