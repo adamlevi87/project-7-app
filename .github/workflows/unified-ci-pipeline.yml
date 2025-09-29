@@ -165,61 +165,51 @@ jobs:
       - name: Detect merge information
         id: merge-info
         run: |
-          echo "🔍 Detecting merge information..."
+          echo "Detecting merge information..."
           
-          # Check if HEAD is a merge commit
-          PARENT_COUNT=$(git cat-file -p HEAD | grep '^parent' | wc -l)
+          COMMIT_SHA="${{ github.sha }}"
           
-          if [ "$PARENT_COUNT" -gt 1 ]; then
-            echo "Merge commit detected"
+          # Find PR associated with this commit
+          PR_NUMBER=$(gh pr list --state merged --search "$COMMIT_SHA" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR #$PR_NUMBER for commit $COMMIT_SHA"
             
-            # Get commit message which typically contains PR info
-            COMMIT_MSG=$(git log -1 --format=%s HEAD)
+            # Get PR details
+            PR_DATA=$(gh pr view $PR_NUMBER --json title,body,headRefName,baseRefName)
+            PR_BODY=$(echo "$PR_DATA" | jq -r '.body')
+            PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
+            PR_BASE_REF=$(echo "$PR_DATA" | jq -r '.baseRefName')
             
-            # Try to extract PR number from commit message (format: "Merge pull request #123")
-            if [[ "$COMMIT_MSG" =~ Merge\ pull\ request\ \#([0-9]+) ]]; then
-              PR_NUMBER="${BASH_REMATCH[1]}"
-              echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
-              echo "Found PR number: $PR_NUMBER"
+            echo "PR Head Ref: $PR_HEAD_REF"
+            echo "PR Base Ref: $PR_BASE_REF"
+            
+            # Check if this PR came from manual-release.yml
+            if [[ "$PR_HEAD_REF" =~ ^release/ && 
+                  "$PR_BASE_REF" == "main" && 
+                  "$PR_BODY" == *"This PR will be tagged automatically after merge."* ]]; then
               
-              # Get PR details using GitHub CLI
-              PR_DATA=$(gh pr view $PR_NUMBER --json title,body,headRefName,baseRefName)
-              PR_TITLE=$(echo "$PR_DATA" | jq -r '.title')
-              PR_BODY=$(echo "$PR_DATA" | jq -r '.body')
-              PR_HEAD_REF=$(echo "$PR_DATA" | jq -r '.headRefName')
-              PR_BASE_REF=$(echo "$PR_DATA" | jq -r '.baseRefName')
+              echo "Release PR detected (from manual-release.yml)"
               
-              echo "PR Title: $PR_TITLE"
-              echo "PR Head Ref: $PR_HEAD_REF"
-              echo "PR Base Ref: $PR_BASE_REF"
-              
-              # Check if this is a release PR
-              if [[ "$PR_HEAD_REF" =~ ^release/ && "$PR_BODY" == *"This PR will be tagged automatically after merge."* ]]; then
-                echo "✅ Release PR detected"
-                
-                # Extract version from PR body
-                VERSION_LINE=$(echo "$PR_BODY" | grep -o '\*\*Version\*\*: v[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "")
-                if [ -n "$VERSION_LINE" ]; then
-                  EXTRACTED_VERSION=$(echo "$VERSION_LINE" | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+')
-                  echo "is_release_pr=true" >> $GITHUB_OUTPUT
-                  echo "version=$EXTRACTED_VERSION" >> $GITHUB_OUTPUT
-                  echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
-                  echo "Extracted version: $EXTRACTED_VERSION"
-                else
-                  echo "⚠️ Release PR but no version found - using patch strategy"
-                  echo "is_release_pr=false" >> $GITHUB_OUTPUT
-                fi
+              # Extract version from PR body
+              VERSION_LINE=$(echo "$PR_BODY" | grep -o '\*\*Version\*\*: v[0-9]\+\.[0-9]\+\.[0-9]\+' || echo "")
+              if [ -n "$VERSION_LINE" ]; then
+                EXTRACTED_VERSION=$(echo "$VERSION_LINE" | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+')
+                echo "is_release_pr=true" >> $GITHUB_OUTPUT
+                echo "version=$EXTRACTED_VERSION" >> $GITHUB_OUTPUT
+                echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
               else
-                echo "Standard PR merge - using patch strategy"
+                echo "Release PR but no version found - using patch strategy"
                 echo "is_release_pr=false" >> $GITHUB_OUTPUT
                 echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
               fi
             else
-              echo "Could not extract PR number from commit message"
+              echo "Standard PR - using patch strategy"
               echo "is_release_pr=false" >> $GITHUB_OUTPUT
+              echo "source_branch=$PR_HEAD_REF" >> $GITHUB_OUTPUT
             fi
           else
-            echo "Direct push detected (not a merge) - using patch strategy"
+            echo "Direct push (no PR found)"
             echo "is_release_pr=false" >> $GITHUB_OUTPUT
           fi
         env:
