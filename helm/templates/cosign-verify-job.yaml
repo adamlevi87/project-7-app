@@ -1,58 +1,56 @@
-{{- if .Values.cosign.enabled }}
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: cosign-verify-{{ include "common.fullname" . }}
-  namespace: {{ .Release.Namespace }}
-  annotations:
-    argocd.argoproj.io/hook: PreSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
-    argocd.argoproj.io/sync-wave: "-1"
-spec:
-  backoffLimit: 3
-  template:
-    spec:
-      restartPolicy: Never
-      serviceAccountName: {{ .Values.serviceAccount.name }}
-      initContainers:
-      - name: ecr-login
-        image: amazon/aws-cli:latest
-        command: ["/bin/sh", "-c"]
-        args:
-        - |
-          aws ecr get-login-password --region us-east-1 > /shared/token
-          echo "{{ .Values.image.repository | regexFind "^[^/]+" }}" > /shared/registry
-        volumeMounts:
-        - name: shared-data
-          mountPath: /shared
-      - name: docker-login
-        image: docker:27-cli
-        command: ["/bin/sh", "-c"]
-        args:
-        - |
-          cat /shared/token | docker login --username AWS --password-stdin $(cat /shared/registry)
-          cp ~/.docker/config.json /shared/
-          chmod 644 /shared/config.json
-        volumeMounts:
-        - name: shared-data
-          mountPath: /shared
-      containers:
-      - name: cosign-verify
-        image: gcr.io/projectsigstore/cosign:v2.6.0
-        command:
-        - cosign
-        - verify
-        - --attachment-tag-prefix=SIGNATURE-
-        - --certificate-identity-regexp={{ .Values.cosign.certificateIdentity }}
-        - --certificate-oidc-issuer={{ .Values.cosign.oidcIssuer }}
-        - "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
-        env:
-        - name: DOCKER_CONFIG
-          value: /shared
-        volumeMounts:
-        - name: shared-data
-          mountPath: /shared
-      volumes:
-      - name: shared-data
-        emptyDir: {}
-{{- end }}
+# {{- if .Values.cosign.enabled }}
+# apiVersion: batch/v1
+# kind: Job
+# metadata:
+#   name: cosign-verify-{{ include "common.fullname" . }}
+#   namespace: {{ .Release.Namespace }}
+#   annotations:
+#     argocd.argoproj.io/sync-wave: "-1"
+# spec:
+#   backoffLimit: 3
+#   template:
+#     spec:
+#       restartPolicy: Never
+#       serviceAccountName: {{ .Values.serviceAccount.name }}
+#       initContainers:
+#       - name: ecr-login
+#         image: amazon/aws-cli:latest
+#         command: ["/bin/sh", "-c"]
+#         args:
+#         - |
+#           aws ecr get-login-password --region us-east-1 > /shared/token
+#           echo "{{ .Values.image.repository | regexFind "^[^/]+" }}" > /shared/registry
+#         volumeMounts:
+#         - name: shared-data
+#           mountPath: /shared
+#       - name: docker-login
+#         image: docker:27-cli
+#         command: ["/bin/sh", "-c"]
+#         args:
+#         - |
+#           cat /shared/token | docker login --username AWS --password-stdin $(cat /shared/registry)
+#           cp ~/.docker/config.json /shared/
+#           chmod 644 /shared/config.json
+#         volumeMounts:
+#         - name: shared-data
+#           mountPath: /shared
+#       containers:
+#       - name: cosign-verify
+#         image: gcr.io/projectsigstore/cosign:v2.6.0
+#         command:
+#         - cosign
+#         - verify
+#         - --attachment-tag-prefix=SIGNATURE-
+#         - --certificate-identity-regexp={{ .Values.cosign.certificateIdentity }}
+#         - --certificate-oidc-issuer={{ .Values.cosign.oidcIssuer }}
+#         - "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+#         env:
+#         - name: DOCKER_CONFIG
+#           value: /shared
+#         volumeMounts:
+#         - name: shared-data
+#           mountPath: /shared
+#       volumes:
+#       - name: shared-data
+#         emptyDir: {}
+# {{- end }}
