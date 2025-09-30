@@ -3,30 +3,30 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: cosign-verify-{{ include "common.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  namespace: {{ .Values.namespace.name }}
   {{- if .Values.cosign.annotations }}
   annotations:
     {{- toYaml .Values.cosign.annotations | nindent 4 }}
   {{- end }}
 spec:
-  backoffLimit: 3
+  backoffLimit: {{ .Values.cosign.backoffLimit | default 3 }}
   template:
     spec:
       restartPolicy: Never
       serviceAccountName: {{ .Values.serviceAccount.name }}
       initContainers:
       - name: ecr-login
-        image: amazon/aws-cli:latest
+        image: {{ .Values.cosign.images.awsCli | default "amazon/aws-cli:latest" }}
         command: ["/bin/sh", "-c"]
         args:
         - |
-          aws ecr get-login-password --region us-east-1 > /shared/token
+          aws ecr get-login-password --region {{ .Values.cosign.awsRegion }} > /shared/token
           echo "{{ .Values.image.repository | regexFind "^[^/]+" }}" > /shared/registry
         volumeMounts:
         - name: shared-data
           mountPath: /shared
       - name: docker-login
-        image: docker:27-cli
+        image: {{ .Values.cosign.images.docker | default "docker:27-cli" }}
         command: ["/bin/sh", "-c"]
         args:
         - |
@@ -38,11 +38,11 @@ spec:
           mountPath: /shared
       containers:
       - name: cosign-verify
-        image: gcr.io/projectsigstore/cosign:v2.6.0
+        image: {{ .Values.cosign.images.cosign | default "gcr.io/projectsigstore/cosign:v2.6.0" }}
         command:
         - cosign
         - verify
-        - --attachment-tag-prefix=SIGNATURE-
+        - --attachment-tag-prefix={{ .Values.cosign.attachmentTagPrefix | default "SIGNATURE-" }}
         - --certificate-identity-regexp={{ .Values.cosign.certificateIdentity }}
         - --certificate-oidc-issuer={{ .Values.cosign.oidcIssuer }}
         - "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
