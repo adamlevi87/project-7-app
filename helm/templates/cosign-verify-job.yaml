@@ -4,8 +4,10 @@ kind: Job
 metadata:
   name: cosign-verify-{{ include "common.fullname" . }}
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.cosign.annotations }}
   annotations:
-    argocd.argoproj.io/sync-wave: "-1"
+    {{- toYaml .Values.cosign.annotations | nindent 4 }}
+  {{- end }}
 spec:
   backoffLimit: 3
   template:
