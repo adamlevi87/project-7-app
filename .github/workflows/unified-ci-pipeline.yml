@@ -55,7 +55,7 @@ on:
 
 jobs:
   detect-context:
-    needs: check-should-run
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     outputs:
       target_branch: ${{ steps.branch.outputs.name }}
