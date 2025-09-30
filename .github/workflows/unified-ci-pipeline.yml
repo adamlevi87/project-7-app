@@ -101,7 +101,7 @@ jobs:
   run-tests:
     needs: detect-context
     #if: ${{ inputs.skip_tests != true && !failure() && !cancelled() }}
-    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.skip_tests != true) || github.event_name == 'push' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.skip_tests != true && !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
