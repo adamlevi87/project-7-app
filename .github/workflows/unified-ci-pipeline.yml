@@ -84,6 +84,18 @@ jobs:
           echo "## 🎯 Unified CI Pipeline - Context Detection" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Trigger Information" >> $GITHUB_STEP_SUMMARY
+          echo "### Trigger Information" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ steps.merge-info.outputs.source_branch }}" ]; then
+            if [ "${{ steps.merge-info.outputs.is_release_pr }}" == "true" ]; then
+              echo "Triggered by merge of manual release PR from branch \`${{ steps.merge-info.outputs.source_branch }}\`" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "Triggered by merge of PR from branch \`${{ steps.merge-info.outputs.source_branch }}\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "Triggered by direct push to main branch" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Trigger Type** | \`${{ github.event_name }}\` |" >> $GITHUB_STEP_SUMMARY
