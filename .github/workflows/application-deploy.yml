@@ -596,7 +596,7 @@ jobs:
             echo "| Status | Details |" >> $GITHUB_STEP_SUMMARY
             echo "|--------|---------|" >> $GITHUB_STEP_SUMMARY
             echo "| **GitOps Changes** | ✅ Detected |" >> $GITHUB_STEP_SUMMARY
-            echo "| **Pull Request** | [#${{ steps.create-pr.outputs.pr_number }}](https://github.com/${{ github.repository }}/pull/${{ steps.create-pr.outputs.pr_number }}) |" >> $GITHUB_STEP_SUMMARY
+            echo "| **Pull Request** | GitOps PR #${{ steps.create-pr.outputs.pr_number }} |" >> $GITHUB_STEP_SUMMARY
             
             if [ "${{ github.event.inputs.auto_merge }}" == "true" ] && [ "${{ github.event.inputs.target_branch }}" != "main" ]; then
               echo "| **Merge Status** | 🔄 Auto-merged |" >> $GITHUB_STEP_SUMMARY
