@@ -4,6 +4,10 @@ metadata:
   name: {{ include "common.fullname" . }}
   labels:
     {{ include "common.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   type: {{ required "service.type is required" .Values.service.type }}
   selector:
