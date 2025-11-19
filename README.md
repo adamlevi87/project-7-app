@@ -126,6 +126,7 @@ This repository implements a sophisticated CI/CD pipeline with multiple intercon
 **Triggered By:**
 - **Code pushes** to dev/staging/main branches (automatic)
 - **Manual dispatch** via GitHub UI (controlled execution)
+- **[CI - Step 0 - Base Image Management](#4-ci---step-0---base-image-management-base-image-managementyml---supply-chain-security--dependency-management)** (optionally, after Dockerfile updates)
 
 **Key Intelligence:**
 - **Code pushes** → Always run tests via CI - Step 1 - Tests and Validations
@@ -232,23 +233,23 @@ This repository implements a sophisticated CI/CD pipeline with multiple intercon
 
 ### **Complete Flow Patterns**
 
-#### **Pattern 1: Fast Development (Default)**
+#### **Pattern 1: Standard Development (Automatic)**
 ```
 Code Push → Unified CI Pipeline → Tests & Validations → Application Deploy → GitOps PR → Auto-merge
 ```
-**Time:** ~8-12 minutes | **Use:** Developer iteration, feature development
+**Time:** ~15-20 minutes | **Use:** Normal development workflow with full validation
 
-#### **Pattern 2: Manual Fast Deployment**
+#### **Pattern 2: Fast Deployment (Manual)**
 ```
 Manual → Unified CI Pipeline (skip_tests=true) → Application Deploy → GitOps PR
 ```
 **Time:** ~3-5 minutes | **Use:** Hotfixes, emergency deployments
 
-#### **Pattern 3: Standalone Comprehensive Testing**
+#### **Pattern 3: Comprehensive Testing (Manual)**
 ```
 Manual → Tests & Validations (full 6-stage pipeline) → Application Deploy
 ```
-**Time:** ~15-20 minutes | **Use:** Pre-release validation, quality gates
+**Time:** ~15-20 minutes | **Use:** Standalone testing without orchestration, pre-release validation
 
 #### **Pattern 4: Controlled Feature Release**
 ```
@@ -273,20 +274,25 @@ Manual → Application Deploy (direct) → GitOps PR
 
 ### **Requirements Summary**
 
-#### **Core Infrastructure:**
+#### **Infrastructure (Automatically provisioned by Terraform):**
 - **AWS IAM Role** - OIDC-configured for ECR access
 - **ECR Repository** - Container image storage
 - **GitOps Repository** - ArgoCD deployment manifests
-
-#### **Security & Scanning:**
-- **Docker Hub Account** - Private registry for base image caching
-- **Snyk Token** - Dependency vulnerability scanning
-- **Cosign** - Container image signing
-
-#### **Repository Configuration:**
-- **Variables** - AWS region, ECR URLs, GitOps repo references (set by Terraform)
-- **Secrets** - Docker Hub credentials, AWS role ARNs, GitHub PAT tokens (set by Terraform)
 - **OIDC Provider** - AWS integration for secure authentication
+
+#### **Repository Configuration (Automatically set by Terraform):**
+- **Variables** - AWS region, ECR URLs, GitOps repo references
+- **Secrets** - AWS role ARNs, GitHub PAT tokens for GitOps integration
+- **Permissions** - ECR access policies, cross-repository workflow triggers
+
+#### **Manual Setup Required:**
+- **Docker Hub Account** - Private registry for base image caching
+  - `DOCKER_HUB_USERNAME` and `DOCKER_HUB_PASSWORD` secrets (must be set manually)
+- **Snyk Token** - Dependency vulnerability scanning
+  - `SNYK_TOKEN` secret (must be set manually)
+- **Cosign** - Container image signing (automatically installed in workflows)
+
+**Note:** The core infrastructure, repository secrets, and variables are all handled automatically by the [project-7-tf](https://github.com/adamlevi87/project-7-tf) Terraform deployment. Only the external service accounts (Docker Hub, Snyk) require manual setup.
 
 This architecture provides exceptional flexibility - from rapid development iteration to comprehensive quality gates, emergency response capabilities, and enterprise-grade release management - all while maintaining security, traceability, and operational excellence.
 
