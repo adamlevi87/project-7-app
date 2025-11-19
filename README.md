@@ -116,14 +116,179 @@ docker run -p 3000:3000 it-works-on-my-machine
 
 ## GitHub Workflows
 
-*[Detailed workflow documentation will be added in the next phase]*
+This repository implements a sophisticated CI/CD pipeline with multiple interconnected workflows providing comprehensive validation, security scanning, and automated deployment capabilities.
 
-The repository includes several sophisticated workflows for:
-- Application building and testing
-- Security scanning and validation
-- ECR image management with content-based tagging
-- GitOps integration for automated deployments
-- Cross-repository workflow orchestration
+### **Primary Workflows**
+
+#### **1. Unified CI Pipeline ([unified-ci-pipeline.yml](https://github.com/adamlevi87/project-7-app/actions/workflows/unified-ci-pipeline.yml)) - The Central Orchestrator**
+**Purpose:** Primary entry point providing multiple execution paths based on different needs.
+
+**Triggered By:**
+- **Code pushes** to dev/staging/main branches (automatic)
+- **Manual dispatch** via GitHub UI (controlled execution)
+
+**Key Intelligence:**
+- **Code pushes** → Always run tests via CI - Step 1 - Tests and Validations
+- **Manual triggers** → `skip_tests` defaults to TRUE for fast deployment when needed
+- **Main branch merges** → Analyzes PR metadata to detect release PRs, triggers Auto Patch Release workflow for version tagging, then proceeds to deployment
+- **Branch-aware behavior** → Auto-merge for dev/staging, manual approval for main
+
+**Calls:**
+- [CI - Step 1 - Tests and Validations](#2-ci---step-1---tests-and-validations-tests-and-validationsyml---the-comprehensive-validation-engine) (for push triggers or when tests not skipped)
+- [Auto Patch Release](#6-auto-patch-release-auto-patch-releaseyml---automated-release-tagging) (for main branch merges)
+- [CI - Step 2 - Application Build and Deploy to ECR](#3-ci---step-2---application-build-and-deploy-to-ecr-application-deployyml---the-deployment-engine) (for deployment)
+
+#### **2. CI - Step 1 - Tests and Validations ([tests-and-validations.yml](https://github.com/adamlevi87/project-7-app/actions/workflows/tests-and-validations.yml)) - The Comprehensive Validation Engine**
+**Purpose:** 6-stage comprehensive testing pipeline ensuring code quality and security.
+
+**Triggered By:**
+- **Unified CI Pipeline** (orchestrated execution)
+- **Manual dispatch** (standalone comprehensive testing)
+
+**6-Stage Pipeline:**
+1. **Quality** - Lockfile validation, npm audit, linting, Dockerfile validation
+2. **Testing** - Unit tests, integration tests, containerized testing
+3. **Security** - Snyk, Trivy, Docker Scout, Semgrep (multi-layered security scanning)
+4. **Container** - Dive analysis, structure tests, runtime validation
+5. **Performance** - Performance baselines, compliance checks  
+6. **Deployment** - Triggers CI - Step 2 - Application Build and Deploy to ECR (unless skipped)
+
+**Calls:**
+- [CI - Step 2 - Application Build and Deploy to ECR](#3-ci---step-2---application-build-and-deploy-to-ecr-application-deployyml---the-deployment-engine) (Stage 6, unless skipped)
+
+#### **3. CI - Step 2 - Application Build and Deploy to ECR ([application-deploy.yml](https://github.com/adamlevi87/project-7-app/actions/workflows/application-deploy.yml)) - The Deployment Engine**
+**Purpose:** Core deployment with smart ECR management and GitOps integration.
+
+**Triggered By:**
+- **Unified CI Pipeline** (orchestrated deployment)
+- **CI - Step 1 - Tests and Validations** (Stage 6 deployment trigger)
+- **Manual dispatch** (emergency/direct deployment)
+
+**Three Action Modes:**
+- **build-and-push** - Smart build with content deduplication
+- **update-digest-only** - Skip building, update GitOps with existing digest
+- **force-rebuild** - Force build regardless of changes
+
+**Key Features:**
+- **Content Hash Deduplication** - SHA256-based smart building (only builds if content changed)
+- **Smart ECR Management** - Multiple tagging strategies, existence checks
+- **Security Integration** - Cosign signing, SBOM generation, provenance attestation
+- **GitOps Automation** - Creates PRs in GitOps repo, auto-merges for dev/staging, manual approval for main
+
+**Calls:**
+- GitOps repository workflows (via API calls for PR creation and auto-merge)
+
+---
+
+### **Supporting Workflows**
+
+#### **4. CI - Step 0 - Base Image Management ([base-image-management.yml](https://github.com/adamlevi87/project-7-app/actions/workflows/base-image-management.yml)) - Supply Chain Security & Dependency Management**
+**Purpose:** Comprehensive base image management with supply chain security verification and private registry caching.
+
+**Triggered By:**
+- **Manual dispatch only** (controlled dependency updates)
+
+**Advanced Capabilities:**
+- **Supply Chain Security** - Content Trust verification, specific manifest pinning
+- **Private Registry Caching** - Re-tags and pushes verified images to private Docker Hub
+- **Dockerfile Automation** - Updates all Dockerfile FROM statements to use private registry
+- **Version Resolution** - Smart version management (latest tags, specified versions, auto-generation)
+- **PR Integration** - Creates Dockerfile update PRs, optional CI triggering
+
+**Calls:**
+- [Unified CI Pipeline](#1-unified-ci-pipeline-unified-ci-pipelineyml---the-central-orchestrator) (optionally, after Dockerfile updates)
+
+#### **5. Manual Release ([manual-release.yml](https://github.com/adamlevi87/project-7-app/actions/workflows/manual-release.yml)) - Controlled Branch Promotion & Versioning**
+**Purpose:** Human-controlled workflow for promoting changes between branches with proper version management.
+
+**Triggered By:**
+- **Manual dispatch only** (human-controlled releases)
+
+**Capabilities:**
+- **Branch Promotion** - `dev → staging` or `staging → main`
+- **Version Management** - Major or minor version bumps (when targeting main)
+- **Smart Automation** - Auto-merges to staging, manual review required for main
+- **Release Preparation** - Creates release PRs with proper metadata for Auto Patch Release
+
+**Calls:**
+- No direct workflow calls (creates PRs that trigger other workflows when merged)
+
+#### **6. Auto Patch Release ([auto-patch-release.yml](https://github.com/adamlevi87/project-7-app/actions/workflows/auto-patch-release.yml)) - Automated Release Tagging**
+**Purpose:** Automatic release creation and tagging system triggered after main branch changes.
+
+**Triggered By:**
+- **Unified CI Pipeline** (automatically after main branch merges)
+
+**Intelligence Features:**
+- **Release Detection** - Analyzes PR metadata to determine if it came from Manual Release
+- **Dual Strategy** - Uses planned versions for manual releases, auto-bumps patch for others
+- **Git Tag Creation** - Creates and pushes version tags
+- **GitHub Release** - Generates release notes and publishes releases
+
+**Calls:**
+- No other workflows (terminal workflow in release process)
+
+---
+
+### **Complete Flow Patterns**
+
+#### **Pattern 1: Fast Development (Default)**
+```
+Code Push → Unified CI Pipeline → Tests & Validations → Application Deploy → GitOps PR → Auto-merge
+```
+**Time:** ~8-12 minutes | **Use:** Developer iteration, feature development
+
+#### **Pattern 2: Manual Fast Deployment**
+```
+Manual → Unified CI Pipeline (skip_tests=true) → Application Deploy → GitOps PR
+```
+**Time:** ~3-5 minutes | **Use:** Hotfixes, emergency deployments
+
+#### **Pattern 3: Standalone Comprehensive Testing**
+```
+Manual → Tests & Validations (full 6-stage pipeline) → Application Deploy
+```
+**Time:** ~15-20 minutes | **Use:** Pre-release validation, quality gates
+
+#### **Pattern 4: Controlled Feature Release**
+```
+Manual → Manual Release (dev→staging) → Auto-merge → Unified CI Pipeline → Auto Patch Release (v1.2.3)
+Manual → Manual Release (staging→main, minor) → Manual Review → Unified CI Pipeline → Auto Patch Release (v1.3.0)
+```
+**Use:** Structured feature releases with proper versioning
+
+#### **Pattern 5: Supply Chain Management**
+```
+Manual → Base Image Management → Dockerfile PR → (Optional) Unified CI Pipeline trigger
+```
+**Use:** Security updates, dependency management
+
+#### **Pattern 6: Emergency/Direct Deployment**
+```
+Manual → Application Deploy (direct) → GitOps PR
+```
+**Time:** ~3-5 minutes | **Use:** Bypass all validation for critical fixes
+
+---
+
+### **Requirements Summary**
+
+#### **Core Infrastructure:**
+- **AWS IAM Role** - OIDC-configured for ECR access
+- **ECR Repository** - Container image storage
+- **GitOps Repository** - ArgoCD deployment manifests
+
+#### **Security & Scanning:**
+- **Docker Hub Account** - Private registry for base image caching
+- **Snyk Token** - Dependency vulnerability scanning
+- **Cosign** - Container image signing
+
+#### **Repository Configuration:**
+- **Variables** - AWS region, ECR URLs, GitOps repo references (set by Terraform)
+- **Secrets** - Docker Hub credentials, AWS role ARNs, GitHub PAT tokens (set by Terraform)
+- **OIDC Provider** - AWS integration for secure authentication
+
+This architecture provides exceptional flexibility - from rapid development iteration to comprehensive quality gates, emergency response capabilities, and enterprise-grade release management - all while maintaining security, traceability, and operational excellence.
 
 ---
 
