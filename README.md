@@ -22,7 +22,7 @@ This repository contains a Node.js Express microservice that demonstrates the tr
 │   ├── base-image-management.yml   # Supply chain security and dependency management
 │   ├── manual-release.yml          # Controlled branch promotion and versioning
 │   └── auto-patch-release.yml      # Automated release tagging
-├── helm/                        # Kubernetes Helm chart
+├── helm/                        # Kubernetes Helm chart (monitored by ArgoCD)
 │   ├── Chart.yaml               # Helm chart metadata
 │   ├── values.yaml             # Default Helm values
 │   └── templates/              # Kubernetes manifest templates
@@ -33,6 +33,14 @@ This repository contains a Node.js Express microservice that demonstrates the tr
 │   └── test/                  # Jest test suite
 └── original_it-works-on-my-machine/ # Original developer code (reference)
 ```
+
+## ArgoCD Integration
+
+This repository is monitored by ArgoCD as part of a **multi-source deployment configuration**:
+- **ArgoCD watches** the `helm/` directory for Helm chart changes
+- **Automatic synchronization** occurs when changes are pushed to tracked branches
+
+*For complete GitOps workflow details, see [project-7-gitops](https://github.com/adamlevi87/project-7-gitops)*
 
 ## Project Origins & Story
 
