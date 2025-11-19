@@ -12,6 +12,28 @@ This repository contains a Node.js Express microservice that demonstrates the tr
 - **Security**: CSRF protection, cookie parsing, session management
 - **Container**: Docker (Alpine-based)
 
+## Repository Structure
+
+```
+├── .github/workflows/           # CI/CD pipeline workflows
+│   ├── unified-ci-pipeline.yml     # Central orchestrator workflow
+│   ├── tests-and-validations.yml   # 6-stage comprehensive validation
+│   ├── application-deploy.yml      # ECR deployment and GitOps integration
+│   ├── base-image-management.yml   # Supply chain security and dependency management
+│   ├── manual-release.yml          # Controlled branch promotion and versioning
+│   └── auto-patch-release.yml      # Automated release tagging
+├── helm/                        # Kubernetes Helm chart
+│   ├── Chart.yaml               # Helm chart metadata
+│   ├── values.yaml             # Default Helm values
+│   └── templates/              # Kubernetes manifest templates
+├── it-works-on-my-machine/     # Production-ready application
+│   ├── app.js                  # Main Express application
+│   ├── package.json           # Dependencies and scripts
+│   ├── Dockerfile             # Container build configuration
+│   └── test/                  # Jest test suite
+└── original_it-works-on-my-machine/ # Original developer code (reference)
+```
+
 ## Project Origins & Story
 
 ### The Original Code
